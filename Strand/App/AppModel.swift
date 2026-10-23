@@ -1282,6 +1282,14 @@ final class AppModel: ObservableObject {
 
         await AppleWatchDevice.registerIfAuthorized(
             registry: registry, store: store, authorized: authorized, now: now)
+        // The day-owner resolver only sees registered devices, so register the workout-HR source once the
+        // sync has stored a sample under it. Only when absent: a re-add would reset its pairing date and
+        // drop a nickname the user gave it.
+        if !registry.devices.contains(where: { $0.id == HealthWorkoutHR.deviceId }),
+           ((try? await store.latestHRSampleTs(deviceId: HealthWorkoutHR.deviceId)) ?? nil) != nil {
+            registry.add(HealthWorkoutHR.registryDevice(brand: "Apple Health workouts",
+                                                        now: Int(now.timeIntervalSince1970)))
+        }
         guard registry.devices.contains(where: { $0.id == AppleWatchDevice.deviceId }) else {
             await repo.refresh()
             return

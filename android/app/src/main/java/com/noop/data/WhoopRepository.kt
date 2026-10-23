@@ -495,6 +495,12 @@ class WhoopRepository(
     /** #716: read all paired devices (thin pass-through for the BLE scan fix). */
     suspend fun pairedDevices(): List<PairedDeviceRow> = dao.pairedDevices()
 
+    /** Register [row] only when no device has its id. The upsert REPLACEs, so registering a source on every
+     *  import would reset its pairing date and drop a nickname the user gave it. */
+    suspend fun registerPairedDeviceIfAbsent(row: PairedDeviceRow) {
+        if (dao.pairedDevices().none { it.id == row.id }) dao.upsertPairedDevice(row)
+    }
+
     /** Raw biometric sample counts per device id in a window - see [WhoopDao.rawSampleCountsByDevice]. */
     suspend fun rawSampleCountsByDevice(from: Long, to: Long): List<Pair<String, Int>> =
         dao.rawSampleCountsByDevice(from, to).map { it.deviceId to it.total }
@@ -1219,6 +1225,16 @@ class WhoopRepository(
      */
     suspend fun hrSamplesUnion(activeDeviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
         List<HrSample> = mergeHrByTs(rawWhoopSourceIds(activeDeviceId).map { dao.hrSamples(it, from, to, limit) })
+
+    /** The live Effort input: [hrSamplesUnion] with its gaps filled from imported workout HR
+     *  ([com.noop.analytics.EffortHrMerge]), the same stream the stored day is scored from, so a ride the
+     *  strap never saw lifts the ring before the next scoring pass. Unchanged when no workout HR falls in
+     *  the window. Twin of Swift `Repository.effortHrSamples`. */
+    suspend fun effortHrSamplesUnion(activeDeviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
+        List<HrSample> = com.noop.analytics.EffortHrMerge.gapFill(
+            hrSamplesUnion(activeDeviceId, from, to, limit),
+            dao.hrSamples(HealthWorkoutHr.DEVICE_ID, from, to, limit),
+        )
 
     /** Raw measured HR only (no v26 PPG-derived union) for the raw-sensor diagnostic export. */
     suspend fun rawHrSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =

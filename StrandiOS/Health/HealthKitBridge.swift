@@ -672,7 +672,7 @@ final class HealthKitBridge: ObservableObject {
         // imports these from a static Health export and Android reads them from Health Connect; iOS now
         // reads them live on-device too, so the platforms reach parity. ON-DEVICE ONLY: this is a plain
         // HealthKit read of workouts NOOP did NOT author, never any cloud/3rd-party API. (#835)
-        let workoutRows = await collectWorkouts(start: start, end: end)
+        let (workoutRows, workoutHr) = await collectWorkouts(start: start, end: end)
 
         // Persist all the apple-health rows AND write back, advancing lastSync only when the WHOLE
         // round-trip succeeds. The three read-side upserts used to be swallowed by `try?`, so a failed
@@ -684,6 +684,12 @@ final class HealthKitBridge: ObservableObject {
             try await store.upsertDailyMetrics(dmRows, deviceId: appleDeviceId)
             try await store.upsertMetricSeries(points, deviceId: appleDeviceId)
             if !workoutRows.isEmpty { try await store.upsertWorkouts(workoutRows, deviceId: appleDeviceId) }
+            // The workouts' own HR, under their own source so a strap-less day can score its Effort from
+            // it (see `HealthWorkoutHR`). Insert-only and keyed on (deviceId, ts), so re-reading the same
+            // window writes nothing new. `AppModel.refreshAfterAppleHealthSync` registers the source.
+            if !workoutHr.isEmpty {
+                _ = try await store.insert(Streams(hr: workoutHr), deviceId: HealthWorkoutHR.deviceId)
+            }
             // Imported water (#949) goes to the hydration source, not apple-health, because the hydration
             // screen is what reads it. Every day in the window is written — including the ones with no
             // water at all, as 0 — so deleting a drink in the source app takes it away here on the next
@@ -1630,7 +1636,10 @@ final class HealthKitBridge: ObservableObject {
         }
     }
 
-    private func collectWorkouts(start: Date, end: Date) async -> [WorkoutRow] {
+    /// The workout rows for `[start, end)` (see the #835 note above `collectCaffeine`), plus the HR samples
+    /// HealthKit associates with those workouts, for `HealthWorkoutHR`'s source. Only the workout's OWN
+    /// stream: the strap fallback below already lives under the strap.
+    private func collectWorkouts(start: Date, end: Date) async -> (rows: [WorkoutRow], hr: [HRSample]) {
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
             Self.notNoopAuthored,
@@ -1672,10 +1681,12 @@ final class HealthKitBridge: ObservableObject {
         let profile = repo.strainProfile
         var rows: [WorkoutRow] = []
         rows.reserveCapacity(workoutsAndRows.count)
+        var workoutHr: [HRSample] = []
         for workout in workoutsAndRows {
             let startTs = Int(workout.startDate.timeIntervalSince1970)
             let endTs = max(Int(workout.endDate.timeIntervalSince1970), startTs)
             let appleSamples = await Self.fetchWorkoutHeartRate(for: workout, store: store)
+            workoutHr += appleSamples
             let steps = await Self.fetchWorkoutSteps(for: workout, store: store)
             // Prefer the HR stream HealthKit associates with this workout (for example, Apple Watch).
             // If that stream is absent or too sparse to score, fall back to the locally stored strap
@@ -1728,7 +1739,7 @@ final class HealthKitBridge: ObservableObject {
                 distanceM: workout.totalDistance?.doubleValue(for: .meter()),
                 zonesJSON: nil, notes: nil, steps: steps))
         }
-        return rows
+        return (rows, workoutHr)
     }
 
     /// Beats an imported workout must carry before its EFFORT is scored.
@@ -1794,9 +1805,8 @@ final class HealthKitBridge: ObservableObject {
                 }
                 let unit = HKUnit.count().unitDivided(by: .minute())
                 let result = samples.compactMap { sample -> HRSample? in
-                    let bpm = sample.quantity.doubleValue(for: unit)
-                    guard bpm.isFinite, bpm >= 25, bpm <= 240 else { return nil }
-                    return HRSample(ts: Int(sample.startDate.timeIntervalSince1970), bpm: Int(bpm.rounded()))
+                    HealthWorkoutHR.sample(startEpochSeconds: sample.startDate.timeIntervalSince1970,
+                                           bpm: sample.quantity.doubleValue(for: unit))
                 }
                 cont.resume(returning: result)
             }

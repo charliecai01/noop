@@ -353,6 +353,10 @@ public enum AnalyticsEngine {
                                   // Sleep / recovery keep using hr/rr/resp/gravity — staging needs the
                                   // pre-midnight night span the calendar day omits.
                                   dayHr: [HRSample]? = nil,
+                                  // Strain / "Effort" ONLY: dayHr with its gaps filled from a
+                                  // supplemental source (`EffortHRMerge`). nil keeps Effort on dayHr.
+                                  // Detection, calories and the step totals never see it.
+                                  effortHr: [HRSample]? = nil,
                                   daySteps: [StepSample]? = nil,
                                   dayGravity: [GravitySample]? = nil,
                                   // Wear-gated nightly skin-temp mean is harvested here
@@ -922,7 +926,10 @@ public enum AnalyticsEngine {
         // The Effort ring's own funnel. A nil sink builds nothing at all, so a caller that does not want
         // diagnostics pays nothing; IntelligenceEngine passes its per-day recorder, the same one the
         // `workout detect` and `sleep-detect` lines beside it already use.
-        let strain = StrainScorer.strain(dayHr ?? hr, maxHR: effMaxHR, restingHR: restForStrain,
+        // `effortHr` is that same calendar day with its gaps filled from imported workout HR, when the
+        // caller has any; the calibration line below reads the same stream, so it describes what scored.
+        let strainHr = effortHr ?? dayHr ?? hr
+        let strain = StrainScorer.strain(strainHr, maxHR: effMaxHR, restingHR: restForStrain,
                                          method: effortMethod, sex: profile.sex,
                                          diag: strainDiag, day: day)
         // #2438 step 0 asks two things of a contributed log: whether the day was scored against the
@@ -932,7 +939,7 @@ public enum AnalyticsEngine {
         // `strain` is handed an HRmax with its provenance already gone. Built only when a sink is
         // attached, and it changes no score.
         if let strainDiag {
-            let hrForPeak = dayHr ?? hr
+            let hrForPeak = strainHr
             strainDiag(StrainScorer.dayCalibrationLine(
                 // The value the day was actually scored against, which for an age-less profile is the
                 // one `strain` substitutes internally rather than nil. Reporting nil there would put

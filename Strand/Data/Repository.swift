@@ -1252,6 +1252,17 @@ final class Repository: ObservableObject {
         return byTs.values.sorted { $0.ts < $1.ts }
     }
 
+    /// The live Effort input for `[from, to]`: `hrSamples` with its gaps filled from imported workout HR
+    /// (`EffortHRMerge`), the same stream the stored day is scored from, so a ride the strap never saw
+    /// lifts the ring before the next scoring pass. Unchanged when no workout HR falls in the window.
+    func effortHrSamples(from: Int, to: Int, limit: Int) async -> [HRSample] {
+        let owner = await hrSamples(from: from, to: to, limit: limit)
+        guard let store = await ensureStore(),
+              let supplement = try? await store.hrSamples(deviceId: HealthWorkoutHR.deviceId,
+                                                          from: from, to: to, limit: limit) else { return owner }
+        return EffortHRMerge.gapFill(primary: owner, supplement: supplement)
+    }
+
     /// R-R beats across the active physical WHOOP and canonical history. Exact duplicates are removed
     /// active-first, while same-timestamp distinct beats remain intact.
     func rrIntervals(from: Int, to: Int, limit: Int = 8000) async -> [RRInterval] {

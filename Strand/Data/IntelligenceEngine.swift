@@ -399,6 +399,29 @@ final class IntelligenceEngine: ObservableObject {
         return dayStart < nowLocalMidnight ? nextMidnight : min(nextMidnight, now)
     }
 
+    /// Day Effort's heart rate (`EffortHRMerge`): the owner's calendar day with its gaps filled from
+    /// imported workout HR (`HealthWorkoutHR`). nil when the owner IS that source, or it has nothing in
+    /// `[from, to]`, so such a day is scored exactly as before. Kotlin twin: `IntelligenceEngine.effortDayHr`.
+    nonisolated static func effortDayHr(ownerHr: [HRSample], owner: String, from: Int, to: Int,
+                                        store: WhoopStore) async -> [HRSample]? {
+        guard owner != HealthWorkoutHR.deviceId,
+              let supplement = try? await store.hrSamples(deviceId: HealthWorkoutHR.deviceId, from: from, to: to,
+                                                          limit: 200_000),
+              !supplement.isEmpty else { return nil }
+        return EffortHRMerge.gapFill(primary: ownerHr, supplement: supplement)
+    }
+
+    /// The day-cache key segment for `effortDayHr`'s input. Empty when that day has no supplemental HR, so
+    /// the key of every such day is unchanged; otherwise its count and newest ts, so a ride imported after
+    /// the day was cached invalidates it. Kotlin twin: `IntelligenceEngine.effortSupplementWitness`.
+    nonisolated static func effortSupplementWitness(owner: String, from: Int, to: Int,
+                                                    store: WhoopStore) async -> String {
+        guard owner != HealthWorkoutHR.deviceId,
+              let fp = try? await store.hrFingerprint(deviceId: HealthWorkoutHR.deviceId, from: from, to: to),
+              fp.count > 0 else { return "" }
+        return "|effortSupp=\(fp.count):\(fp.maxTs)"
+    }
+
     /// The provided session the NO-NIGHT line reports as `providedLongest` / `providedLongestEnd`: the
     /// longest, ties broken by the later END.
     ///
@@ -1244,6 +1267,11 @@ final class IntelligenceEngine: ObservableObject {
                     }
                     if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to),
                        let streamFp = try? await store.dayStreamFingerprint(deviceId: owner, from: from, to: to) {
+                        // The calendar day `effortDayHr` fills below; empty unless that day has imported
+                        // workout HR, so every other day keeps its key.
+                        let effortDayStart = Self.midnightLocal(dayStart, offsetSec: tzOffset)
+                        let effortSupp = await Self.effortSupplementWitness(
+                            owner: owner, from: effortDayStart, to: effortDayStart + 86_400 - 1, store: store)
                         let key = AnalyzeRecentDayCache.cacheKey(
                             owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
                             skinAnchorRaw: skinAnchorByOwner[owner],
@@ -1254,7 +1282,8 @@ final class IntelligenceEngine: ObservableObject {
                             // watermark gate above, never this one. Both reads are index-only aggregates
                             // over the same `(deviceId, ts)` keys; a miss costs the 7 full stream reads
                             // this gate exists to skip.
-                            streams: streamFp + "|rrAlias5=\(activeWhoop5RR && owner == Repository.whoopSource)",
+                            streams: streamFp + "|rrAlias5=\(activeWhoop5RR && owner == Repository.whoopSource)"
+                                + effortSupp,
                             // #1575: `hrvTraceActive &&` matters. With the HRV trace OFF no detail
                             // line is ever produced, so the flag describes nothing — but it would still
                             // flip at midnight and invalidate yesterday, charging EVERY user an extra
@@ -1390,6 +1419,11 @@ final class IntelligenceEngine: ObservableObject {
                 } else {
                     dayHr = (try? await store.hrSamples(deviceId: owner, from: dayMid, to: dayEnd, limit: 200_000)) ?? []
                 }
+                // The one exception to I2, and for Effort only: the owner's day with its gaps filled from
+                // imported workout HR, so a ride on a chest strap counts on a day the WHOOP owns. nil (the
+                // common case) leaves Effort on dayHr.
+                let effortHr = await Self.effortDayHr(ownerHr: dayHr, owner: owner, from: dayMid, to: dayEnd,
+                                                      store: store)
                 let daySteps: [StepSample]
                 if let slice = AnalyticsEngine.daySliceFromNight(steps, nightLo: from, nightHi: to,
                                                                  dayLo: dayMid, dayHi: dayEnd, ts: { $0.ts }) {
@@ -1514,7 +1548,8 @@ final class IntelligenceEngine: ObservableObject {
                                                      strainDiag: { strainDiagLines.append($0) },
                                                      hr: hr, rr: rr, resp: resp,
                                                      vendorResp: vendorResp, gravity: grav,
-                                                     steps: steps, dayHr: dayHr, daySteps: daySteps,
+                                                     steps: steps, dayHr: dayHr, effortHr: effortHr,
+                                                     daySteps: daySteps,
                                                      dayGravity: dayGrav,
                                                      skinTemp: skin,
                                                      skinTempFamily: skinFamily,   // #938

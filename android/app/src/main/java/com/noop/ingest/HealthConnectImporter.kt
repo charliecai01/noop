@@ -28,6 +28,8 @@ import com.noop.analytics.HydrationStore
 import com.noop.analytics.RouteMath
 import com.noop.data.AppleDaily
 import com.noop.data.DailyMetric
+import com.noop.data.HealthWorkoutHr
+import com.noop.data.HrSample
 import com.noop.data.ImportSummary
 import com.noop.data.MetricSeriesRow
 import com.noop.data.SleepSession
@@ -386,6 +388,8 @@ object HealthConnectImporter {
         // replaces the stored figure, so a swallowed read error must not be mistaken for an authoritative
         // zero and wipe 30 days of imported water.
         var hydrationReadOk: Boolean
+        // Set once any session's HR lands under [HealthWorkoutHr.DEVICE_ID]; gates registering that source.
+        var storedWorkoutHr = false
 
         val workouts = ArrayList<WorkoutRow>()
         // #1002: each workout's day key, computed at READ time while the record's own zone offset is
@@ -609,12 +613,20 @@ object HealthConnectImporter {
             // (the day-aggregate HeartRateRecord pass above streams the full range and must not be
             // buffered). readAll swallows a per-session failure, so one bad session can't fail the
             // import. ≥60 samples (~1 min) required so a few strays can't fabricate an average.
+            //
+            // The same samples are also stored under [HealthWorkoutHr.DEVICE_ID], so a strap-less day can
+            // score its Effort from the session. Only samples inside the session window (a record that
+            // overlaps the window can run past it), and written per session rather than collected: the
+            // import reaches back WINDOW_YEARS, and buffering every session's beats would hold them all.
+            // Best-effort like the hydration write: a failed write leaves that day's Effort dark and
+            // corrupts nothing, so it must not sink the import.
             for (i in workouts.indices) {
                 val w = workouts[i]
                 if (w.endTs <= w.startTs) continue
                 var sum = 0L
                 var n = 0L
                 var max = 0L
+                val sessionHr = ArrayList<HrSample>()
                 readSelected(
                     HeartRateRecord::class,
                     TimeRangeFilter.between(
@@ -625,6 +637,18 @@ object HealthConnectImporter {
                         sum += s.beatsPerMinute
                         n += 1
                         if (s.beatsPerMinute > max) max = s.beatsPerMinute
+                        val ts = s.time.epochSecond
+                        if (ts in w.startTs..w.endTs) {
+                            HealthWorkoutHr.sample(ts, s.beatsPerMinute.toDouble())?.let { sessionHr.add(it) }
+                        }
+                    }
+                }
+                if (sessionHr.isNotEmpty()) {
+                    try {
+                        repo.insertHr(sessionHr)
+                        storedWorkoutHr = true
+                    } catch (e: Exception) {
+                        android.util.Log.w("HealthConnect", "storing workout HR failed; skipping: ${e.message}")
                     }
                 }
                 if (n >= 60) {
@@ -858,6 +882,13 @@ object HealthConnectImporter {
             }
             if (workouts.isNotEmpty()) {
                 repo.upsertWorkouts(workouts)
+            }
+            // The day-owner resolver only sees registered devices. Twin of the Swift registration in
+            // `AppModel.refreshAfterAppleHealthSync`.
+            if (storedWorkoutHr) {
+                repo.registerPairedDeviceIfAbsent(
+                    HealthWorkoutHr.registryDevice("Health Connect workouts", System.currentTimeMillis() / 1000)
+                )
             }
         } catch (e: Exception) {
             return ImportSummary.failure(SOURCE, "Saving Health Connect data failed: ${e.message}")

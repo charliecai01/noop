@@ -315,6 +315,9 @@ object AnalyticsEngine {
         // workout straddling local midnight splits at the day boundary (same tradeoff as the totals).
         // Sleep / recovery keep using hr/rr/resp/gravity — staging needs the pre-midnight night span.
         dayHr: List<HrSample>? = null,
+        // Strain / "Effort" ONLY: dayHr with its gaps filled from a supplemental source ([EffortHrMerge]).
+        // null keeps Effort on dayHr. Detection, calories and the step totals never see it.
+        effortHr: List<HrSample>? = null,
         daySteps: List<StepSample>? = null,
         dayGravity: List<GravitySample>? = null,
         // Wear-gated nightly skin-temp mean is harvested here (baseline-independent); IntelligenceEngine
@@ -831,8 +834,11 @@ object AnalyticsEngine {
         val effMaxHR: Double? = maxHROverride
             ?: if (profile.age > 0) StrainScorer.tanakaHRmax(profile.age) else null
         val restForStrain = restingHRDaily?.toDouble() ?: StrainScorer.defaultRestingHR
+        // [effortHr] is that same calendar day with its gaps filled from imported workout HR, when the
+        // caller has any; the calibration line below reads the same stream, so it describes what scored.
+        val strainHr = effortHr ?: dayHr ?: hr
         val strain = StrainScorer.strain(
-            hr = dayHr ?: hr,
+            hr = strainHr,
             maxHR = effMaxHR,
             restingHR = restForStrain,
             method = effortMethod,
@@ -850,7 +856,7 @@ object AnalyticsEngine {
         // is handed an HRmax with its provenance already gone. Built only when a sink is attached, and it
         // changes no score.
         strainDiag?.let { sink ->
-            val hrForPeak = dayHr ?: hr
+            val hrForPeak = strainHr
             sink(
                 StrainScorer.dayCalibrationLine(
                     day = day,

@@ -966,7 +966,8 @@ object IntelligenceEngine {
                     // midnight and invalidate yesterday, charging EVERY user an extra day's re-score to
                     // protect lines they never see. Gating it keeps the default path exactly as it was and
                     // makes the cost what this change claims: paid only while a trace is on.
-                    hrvWindowDetail = hrvTraceSink != null && dayStart == nowLocalMidnight)
+                    hrvWindowDetail = hrvTraceSink != null && dayStart == nowLocalMidnight,
+                    effortDayStart = midnightLocal(dayStart, tzOffsetSeconds))
                 dayCacheKey = key
                 val cached = reusableDayScan(day, key)
                 if (cached != null) {
@@ -1071,6 +1072,8 @@ object IntelligenceEngine {
             // read, so the shortcut only ever skips work, never changes data. Twin of Swift's #997.
             val dayHr = AnalyticsEngine.daySliceFromNight(hr, from, to, dayMidnight, dayEnd) { it.ts.toLong() }
                 ?: repo.hrSamplesForDevice(owner, dayMidnight, dayEnd, STREAM_LIMIT)
+            // The one exception to I2, and for Effort only: imported workout HR fills the owner's gaps.
+            val effortHr = effortDayHr(repo, dayHr, owner, dayMidnight, dayEnd)
             val daySteps = AnalyticsEngine.daySliceFromNight(steps, from, to, dayMidnight, dayEnd) { it.ts }
                 ?: repo.stepSamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
             // Full calendar-day gravity for WORKOUT detection. For a PAST day the night window runs to the
@@ -1169,6 +1172,7 @@ object IntelligenceEngine {
                 gravity = grav,
                 steps = steps,
                 dayHr = dayHr,
+                effortHr = effortHr,
                 daySteps = daySteps,
                 dayGravity = dayGrav,
                 skinTemp = skin,
@@ -2991,11 +2995,44 @@ object IntelligenceEngine {
     private suspend fun rrAwareDayCacheKey(
         repo: com.noop.data.WhoopRepository, owner: String, from: Long, to: Long,
         skinAnchor: Double?, unlabelledAliasOfWhoop5: Boolean, hrvWindowDetail: Boolean,
+        effortDayStart: Long,
     ): String {
         val (count, maxTs) = repo.hrFingerprintWindow(owner, from, to)
         val streams = repo.dayStreamFingerprint(owner, from, to)
+        // The calendar day [effortDayHr] fills; empty unless that day has imported workout HR.
+        val effortSupp = effortSupplementWitness(repo, owner, effortDayStart, effortDayStart + SECONDS_PER_DAY - 1)
         return AnalyzeRecentDayCache.cacheKey(owner, count, maxTs, skinAnchor,
-            streams = streams + "|rrAlias5=$unlabelledAliasOfWhoop5", hrvWindowDetail = hrvWindowDetail)
+            streams = streams + "|rrAlias5=$unlabelledAliasOfWhoop5" + effortSupp, hrvWindowDetail = hrvWindowDetail)
+    }
+
+    /**
+     * Day Effort's heart rate ([EffortHrMerge]): the owner's calendar day with its gaps filled from imported
+     * workout HR ([com.noop.data.HealthWorkoutHr]). null when the owner IS that source, or it has nothing in
+     * [from]..[to], so such a day is scored exactly as before. Out of line for the scoring method's bytecode
+     * budget. Twin of Swift `IntelligenceEngine.effortDayHr`.
+     */
+    internal suspend fun effortDayHr(
+        repo: com.noop.data.WhoopRepository, ownerHr: List<com.noop.data.HrSample>, owner: String, from: Long, to: Long,
+    ): List<com.noop.data.HrSample>? {
+        if (owner == com.noop.data.HealthWorkoutHr.DEVICE_ID) return null
+        val supplement = runCatching {
+            repo.hrSamplesForDevice(com.noop.data.HealthWorkoutHr.DEVICE_ID, from, to, STREAM_LIMIT)
+        }.getOrNull()
+        if (supplement.isNullOrEmpty()) return null
+        return EffortHrMerge.gapFill(ownerHr, supplement)
+    }
+
+    /** The day-cache key segment for [effortDayHr]'s input. Empty when that span has no supplemental HR, so
+     *  every such key is unchanged; otherwise its count and newest ts, so a ride imported after the day was
+     *  cached invalidates it. Twin of Swift `IntelligenceEngine.effortSupplementWitness`. */
+    internal suspend fun effortSupplementWitness(
+        repo: com.noop.data.WhoopRepository, owner: String, from: Long, to: Long,
+    ): String {
+        if (owner == com.noop.data.HealthWorkoutHr.DEVICE_ID) return ""
+        val (count, maxTs) = runCatching {
+            repo.hrFingerprintWindow(com.noop.data.HealthWorkoutHr.DEVICE_ID, from, to)
+        }.getOrNull() ?: return ""
+        return if (count > 0) "|effortSupp=$count:$maxTs" else ""
     }
 
     /** The pass-1 R-R sliding read window. Same reason as [hrReadWindow] for living out here. */

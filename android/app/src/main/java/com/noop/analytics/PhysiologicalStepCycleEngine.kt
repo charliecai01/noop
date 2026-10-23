@@ -217,18 +217,27 @@ internal object PhysiologicalStepCycleEngine {
                 ?: StrainScorer.defaultRestingHR
             val effectiveMaxHr = maxHROverride
                 ?: profile.age.takeIf { it > 0 }?.let { StrainScorer.tanakaHRmax(it.toDouble()) }
+            // Imported workout HR fills the owner's gaps for Effort ([EffortHrMerge]); empty for a cycle with
+            // none, so its key is unchanged. Twin of the Swift DayCycleIntelligenceIntegration.
+            val effortSupp = IntelligenceEngine.effortSupplementWitness(
+                repo, fallbackOwner, window.onset, window.endExclusive - 1L,
+            )
             val loadKey = loadCacheKey(
                 window.onset, window.endExclusive,
                 repo.hrUnionFingerprint(fallbackOwner, window.onset, window.endExclusive - 1L),
                 restingHr, effectiveMaxHr, effortMethod, profile,
-            )
+            ) + effortSupp
             val load = loadCache[window.sleepId]?.takeIf { it.key == loadKey } ?: run {
                 val cycleHr = repo.hrSamplesUnion(
                     fallbackOwner, window.onset, window.endExclusive - 1L, 200_000,
                 )
+                // Effort only; calories stay on the owner's own beats.
+                val effortHr = if (effortSupp.isEmpty()) cycleHr else IntelligenceEngine.effortDayHr(
+                    repo, cycleHr, fallbackOwner, window.onset, window.endExclusive - 1L,
+                ) ?: cycleHr
                 CachedLoad(
                     key = loadKey,
-                    strain = StrainScorer.strain(cycleHr, effectiveMaxHr, restingHr, effortMethod, profile.sex),
+                    strain = StrainScorer.strain(effortHr, effectiveMaxHr, restingHr, effortMethod, profile.sex),
                     calories = if (cycleHr.isNotEmpty()) {
                         Calories.estimateDayCalories(cycleHr, profile, effectiveMaxHr, restingHr)
                     } else null,

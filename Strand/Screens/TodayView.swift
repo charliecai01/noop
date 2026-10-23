@@ -5046,8 +5046,8 @@ struct TodayView: View {
             // live score silently stopped climbing after that. It failed safe (`effectiveEffort` takes the
             // max, so the stored row simply won) which is why it went unnoticed. 200_000 is what every
             // other whole-window HR consumer already passes.
-            let todayHr = await repo.hrSamples(from: effortStart, to: windowEndInclusive,
-                                               limit: 200_000)
+            let todayHr = await repo.effortHrSamples(from: effortStart, to: windowEndInclusive,
+                                                     limit: 200_000)
             // #2460: the manual HR-max override, then Tanaka, exactly as AnalyticsEngine resolves it
             // for the STORED day. These two numbers meet in `effectiveEffort`, which takes the larger,
             // so a live value on the formula's yardstick outvoted an override set because the real

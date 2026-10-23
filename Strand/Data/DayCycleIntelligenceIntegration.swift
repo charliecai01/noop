@@ -213,8 +213,16 @@ import WhoopStore
                     hrWitness.append("\(owner)=\(fp.map { "\($0.count):\($0.maxTs)" } ?? "unread")")
                 }
             }
+            // Imported workout HR fills the owners' gaps for Effort (`EffortHRMerge`). `owners` holds that
+            // source only when it is the cycle's own fallback owner, which the helpers decline, so testing
+            // `fallback` covers both. Empty for a cycle with none, so its key is unchanged.
+            let effortSupp = hrEndInclusive >= window.onset
+                ? await IntelligenceEngine.effortSupplementWitness(
+                    owner: fallback, from: window.onset, to: hrEndInclusive, store: store)
+                : ""
             let loadKey = "\(window.onset)-\(window.endExclusive)|\(hrWitness.joined(separator: ","))"
                 + "|rhr=\(restingHR)|max=\(effectiveMaxHR.map { "\($0)" } ?? "nil")|\(effortMethod)|\(profile.cacheKey)"
+                + effortSupp
             let load: CachedLoad
             if let hit = cache.loads[window.sleepId], hit.key == loadKey, !hrWitness.contains(where: { $0.hasSuffix("=unread") }) {
                 load = hit
@@ -228,9 +236,13 @@ import WhoopStore
                     }
                 }
                 let cycleHR = hrByTimestamp.values.sorted { $0.ts < $1.ts }
+                // Effort only; calories stay on the owners' own beats.
+                let effortHR = effortSupp.isEmpty ? cycleHR
+                    : await IntelligenceEngine.effortDayHr(ownerHr: cycleHR, owner: fallback, from: window.onset,
+                                                           to: hrEndInclusive, store: store) ?? cycleHR
                 load = CachedLoad(
                     key: loadKey,
-                    strain: StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR, restingHR: restingHR,
+                    strain: StrainScorer.strain(effortHR, maxHR: effectiveMaxHR, restingHR: restingHR,
                                                 method: effortMethod, sex: profile.sex),
                     calories: cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
                         cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR))
