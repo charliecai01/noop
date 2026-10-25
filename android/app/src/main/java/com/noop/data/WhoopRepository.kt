@@ -1226,15 +1226,19 @@ class WhoopRepository(
     suspend fun hrSamplesUnion(activeDeviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
         List<HrSample> = mergeHrByTs(rawWhoopSourceIds(activeDeviceId).map { dao.hrSamples(it, from, to, limit) })
 
-    /** The live Effort input: [hrSamplesUnion] with its gaps filled from imported workout HR
-     *  ([com.noop.analytics.EffortHrMerge]), the same stream the stored day is scored from, so a ride the
-     *  strap never saw lifts the ring before the next scoring pass. Unchanged when no workout HR falls in
-     *  the window. Twin of Swift `Repository.effortHrSamples`. */
+    /** The live Effort input: [hrSamplesUnion] with its gaps filled from each supplemental source in turn
+     *  (a recorded chest strap, then imported workout HR; [com.noop.analytics.EffortHrMerge]), the same
+     *  stream the stored day is scored from, so a ride the WHOOP never saw lifts the ring before the next
+     *  scoring pass. Unchanged when no supplemental HR falls in the window. Twin of Swift
+     *  `Repository.effortHrSamples`. */
     suspend fun effortHrSamplesUnion(activeDeviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
-        List<HrSample> = com.noop.analytics.EffortHrMerge.gapFill(
-            hrSamplesUnion(activeDeviceId, from, to, limit),
-            dao.hrSamples(HealthWorkoutHr.DEVICE_ID, from, to, limit),
-        )
+        List<HrSample> {
+        var merged = hrSamplesUnion(activeDeviceId, from, to, limit)
+        for (id in HealthWorkoutHr.supplementIds(dao.pairedDevices(), activeDeviceId)) {
+            merged = com.noop.analytics.EffortHrMerge.gapFill(merged, dao.hrSamples(id, from, to, limit))
+        }
+        return merged
+    }
 
     /** Raw measured HR only (no v26 PPG-derived union) for the raw-sensor diagnostic export. */
     suspend fun rawHrSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
@@ -2426,6 +2430,18 @@ class WhoopRepository(
         fun workoutHrDeviceIds(source: String, rowDeviceId: String, activeStrapId: String): List<String> =
             if (isDetectedWorkout(source)) listOf(rowDeviceId.removeSuffix("-noop"))
             else importedSourceIdsFor(activeStrapId)
+
+        /** The streams [com.noop.ui.AppViewModel.workoutDetailHrIds] tries for an imported workout, in order:
+         *  each recorded chest strap alone, then [fallback] (the WHOOP union, kept ahead of the health store
+         *  because its 1 Hz trace is the finer one on a ride the WHOOP was worn for), then imported workout HR
+         *  alone. A strap already in [fallback] is not tried twice. Twin of Swift
+         *  `Repository.importedWorkoutHrCandidates`. */
+        fun importedWorkoutHrCandidates(supplementIds: List<String>, fallback: List<String>): List<List<String>> {
+            val straps = supplementIds.filter { it != HealthWorkoutHr.DEVICE_ID && it !in fallback }
+            val imported: List<List<String>> = if (HealthWorkoutHr.DEVICE_ID in supplementIds && HealthWorkoutHr.DEVICE_ID !in fallback)
+                listOf(listOf(HealthWorkoutHr.DEVICE_ID)) else emptyList()
+            return straps.map { listOf(it) } + listOf(fallback) + imported
+        }
 
         /** Default row cap on range reads. Matches the Swift call sites' bounded scans. */
         const val DEFAULT_LIMIT = 100_000

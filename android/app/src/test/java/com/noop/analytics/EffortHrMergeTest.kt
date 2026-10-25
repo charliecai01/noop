@@ -70,4 +70,21 @@ class EffortHrMergeTest {
         val filled = StrainScorer.strain(merged, 190.0, 55.0, StrainScorer.Method.EDWARDS, "male") ?: 0.0
         assertTrue(filled > ownerOnly)
     }
+
+    /** Day Effort fills from each supplemental source in turn (a recorded chest strap, then imported workout
+     *  HR), feeding each pass the previous one's output as its primary, so no stretch is counted twice. The
+     *  expected line is the Swift twin's output (`EffortHRMergeTests.testChainedGapFillMatchesTheKotlinOracle`),
+     *  pasted verbatim. Owner bpm start at 60, strap at 150, imported at 200. */
+    @Test
+    fun chainedGapFillMatchesTheSwiftOracle() {
+        val owner = primary(0, 60, 5000)
+        val strap = listOf(1000L, 1001L, 1002L, 1500L).mapIndexed { i, t -> HrSample("strap-1", t, 150 + i) }
+        val imported = listOf(990L, 1100L, 1700L, 4950L, 6000L)
+            .mapIndexed { i, t -> HrSample("apple-health-workouts", t, 200 + i) }
+        val merged = EffortHrMerge.gapFill(EffortHrMerge.gapFill(owner, strap), imported)
+        assertEquals(
+            "0:60,60:61,1000:150,1001:151,1002:152,1500:153,1700:202,5000:62,6000:204",
+            merged.joinToString(",") { "${it.ts}:${it.bpm}" },
+        )
+    }
 }

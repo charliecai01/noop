@@ -59,4 +59,18 @@ final class EffortHRMergeTests: XCTestCase {
         let filled = StrainScorer.strain(merged, maxHR: 190, restingHR: 55, method: .edwards, sex: "male") ?? 0
         XCTAssertGreaterThan(filled, ownerOnly)
     }
+
+    /// Day Effort fills from each supplemental source in turn (a recorded chest strap, then imported workout
+    /// HR), feeding each pass the previous one's output as its primary. The second source therefore yields
+    /// to the first exactly as it yields to the owner, so no stretch is counted twice. Owner bpm start at 60,
+    /// strap at 150, imported at 200. Kotlin `EffortHrMergeTest` pastes this literal.
+    func testChainedGapFillMatchesTheKotlinOracle() {
+        let owner = primary([0, 60, 5000])
+        let strap = supplement([1000, 1001, 1002, 1500])
+        let imported = [990, 1100, 1700, 4950, 6000].enumerated().map { HRSample(ts: $0.element, bpm: 200 + $0.offset) }
+        let merged = EffortHRMerge.gapFill(primary: EffortHRMerge.gapFill(primary: owner, supplement: strap),
+                                           supplement: imported)
+        XCTAssertEqual(merged.map { "\($0.ts):\($0.bpm)" }.joined(separator: ","),
+                       "0:60,60:61,1000:150,1001:151,1002:152,1500:153,1700:202,5000:62,6000:204")
+    }
 }

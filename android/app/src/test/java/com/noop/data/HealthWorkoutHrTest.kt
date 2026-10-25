@@ -37,6 +37,46 @@ class HealthWorkoutHrTest {
         assertNull(HealthWorkoutHr.sample(1_792_000_000L, Double.NaN))
     }
 
+    /**
+     * The expected string is the output of the Swift twin (`HealthWorkoutHR.supplementIds`) over the same
+     * registry, pasted verbatim; `HealthWorkoutHRTests.testSupplementIdsMatchTheKotlinOracle` asserts the
+     * same literal. Generic liveBLE straps of any status come first, oldest-added and then by id; a WHOOP
+     * under any spelling, Oura, FTMS, the Apple Watch and the import row are never straps; the import source
+     * closes the list; the owner is left out.
+     */
+    @Test
+    fun supplementIdsMatchTheSwiftOracle() {
+        fun row(id: String, brand: String, kind: SourceKind, status: DeviceStatus, addedAt: Long) = PairedDeviceRow(
+            id = id, brand = brand, model = "", nickname = null, peripheralId = null,
+            sourceKind = kind.name, capabilities = Metric.hr.name, status = status.name,
+            addedAt = addedAt, lastSeenAt = addedAt,
+        )
+        val rows = listOf(
+            row("my-whoop", "WHOOP", SourceKind.liveBLE, DeviceStatus.active, 50),
+            row("whoop-2", "whoop", SourceKind.liveBLE, DeviceStatus.paired, 60),
+            // The Swift fixture's Apple Watch row is `.liveAppleWatch`, a kind Android lacks; any non-liveBLE
+            // kind is excluded the same way, so the literal is unchanged.
+            row("apple-health", "Apple", SourceKind.cloudImport, DeviceStatus.archived, 70),
+            row("apple-health-workouts", "Apple Health workouts", SourceKind.activityFile, DeviceStatus.paired, 80),
+            row("strap-B", "Heart-rate strap", SourceKind.liveBLE, DeviceStatus.paired, 200),
+            row("strap-A", "Polar", SourceKind.liveBLE, DeviceStatus.archived, 200),
+            row("strap-C", "Garmin", SourceKind.liveBLE, DeviceStatus.paired, 100),
+            row("oura-1", "Oura", SourceKind.oura, DeviceStatus.paired, 90),
+            row("ftms-1", "Bike", SourceKind.ftms, DeviceStatus.paired, 95),
+        )
+        val owners = listOf(null, "my-whoop", "strap-A", "apple-health-workouts")
+        val out = owners.map { HealthWorkoutHr.supplementIds(rows, it).joinToString(",") } +
+            HealthWorkoutHr.supplementIds(emptyList(), null).joinToString(",")
+        assertEquals(
+            "strap-C,strap-A,strap-B,apple-health-workouts" +
+                "|strap-C,strap-A,strap-B,apple-health-workouts" +
+                "|strap-C,strap-B,apple-health-workouts" +
+                "|strap-C,strap-A,strap-B" +
+                "|apple-health-workouts",
+            out.joinToString("|"),
+        )
+    }
+
     /** Ranked by the day-owner resolver as an activity file (priority 3), never as the active device. */
     @Test
     fun registryDeviceIsAPairedActivityFileSourceForHrOnly() {

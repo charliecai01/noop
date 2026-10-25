@@ -147,4 +147,27 @@ class WorkoutHrDeviceKeyTest {
             viaCanonicalConstant.contains("whoop-aabbcc"),
         )
     }
+
+    // An imported workout's detail card tries each recorded chest strap alone, then the WHOOP union, then
+    // imported workout HR alone. Same cases and literal as Swift `WorkoutHrDeviceKeyTests`.
+    @Test fun `imported workout HR candidates put straps first and the health store last`() {
+        val union = listOf("whoop-aabbcc", "my-whoop")
+        fun render(c: List<List<String>>) = c.joinToString(";") { it.joinToString(",") }
+        assertEquals(
+            "strap-C;strap-A;whoop-aabbcc,my-whoop;apple-health-workouts",
+            render(WhoopRepository.importedWorkoutHrCandidates(
+                listOf("strap-C", "strap-A", "apple-health-workouts"), union)),
+        )
+        assertEquals(
+            "whoop-aabbcc,my-whoop;apple-health-workouts",
+            render(WhoopRepository.importedWorkoutHrCandidates(listOf("apple-health-workouts"), union)),
+        )
+        // A strap that is itself the active strap is already in the union and is not tried twice.
+        assertEquals(
+            "strap-C,my-whoop;apple-health-workouts",
+            render(WhoopRepository.importedWorkoutHrCandidates(
+                listOf("strap-C", "apple-health-workouts"), listOf("strap-C", "my-whoop"))),
+        )
+        assertEquals("my-whoop", render(WhoopRepository.importedWorkoutHrCandidates(emptyList(), listOf("my-whoop"))))
+    }
 }

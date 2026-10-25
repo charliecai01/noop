@@ -2163,6 +2163,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: - Workout detail reads (#410) — suspend helpers, additive
 
+    /** The ids whose HR backs a workout's detail card: chart, zones and heart-rate recovery. A strap-native
+     *  row (manual or detected) reads [WhoopRepository.workoutHrDeviceIds] as before. An IMPORTED row has no
+     *  strap of its own, so it reads the first of [WhoopRepository.importedWorkoutHrCandidates] with any heart
+     *  rate in [from]..[to]: a chest strap NOOP recorded on the ride, then the WHOOP union, then the HR the
+     *  health store associated with the workout. One stream answers, never a mix, so the curve and the zones
+     *  describe one sensor. A ride with none of them falls back to the union, which charts nothing, as
+     *  before. Twin of Swift `Repository.workoutDetailHrIds`. */
+    suspend fun workoutDetailHrIds(source: String, rowDeviceId: String, from: Long, to: Long): List<String> {
+        val fallback = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        if (WhoopRepository.isStrapNativeWorkout(source) || to <= from) return fallback
+        val rows = runCatching { repository.pairedDevices() }.getOrDefault(emptyList())
+        val candidates = WhoopRepository.importedWorkoutHrCandidates(
+            com.noop.data.HealthWorkoutHr.supplementIds(rows, null), fallback,
+        )
+        for (ids in candidates) {
+            for (id in ids) {
+                val count = runCatching { repository.hrFingerprintWindow(id, from, to).first }.getOrDefault(0)
+                if (count > 0) return ids
+            }
+        }
+        return fallback
+    }
+
     /** Downsampled HR (mean bpm per bucket) over ONE workout's [from, to] window for the detail
      *  HR-curve. A short session wants a finer bucket than the Today 24h chart (300 s would flatten a
      *  30-min run to ~6 points), so the bucket scales with duration: ~120 buckets across the window,
@@ -2181,7 +2204,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // has no strap of its own and the worn strap may bank under either after a re-add. Previously
         // this read the single active id, so both cases could chart the wrong data — and disagree with
         // the Avg HR on the same card. Defaults keep any caller without a row on today's behaviour.
-        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        val ids = workoutDetailHrIds(source, rowDeviceId, from, to)
         return runCatching { repository.hrBucketsFor(ids, from, to, bucket) }.getOrDefault(emptyList())
     }
 
@@ -2199,7 +2222,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (to <= from) return null
         // #856: the same resolved ids the chart and Avg HR use. Binning a different strap's samples
         // than the curve plots would put three different answers on one card.
-        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        val ids = workoutDetailHrIds(source, rowDeviceId, from, to)
         val samples = runCatching { repository.hrSamplesFor(ids, from, to) }.getOrDefault(emptyList())
         if (samples.isEmpty()) return null
         val zoneSet = profileStore.hrZoneSet
@@ -2223,7 +2246,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // #856: the same resolved ids as the chart, zones and Avg HR — the fourth surface on this card.
         // The recovery window extends PAST the bout, but the strap that recorded it is still the one on
         // the wrist a few minutes later, so a detected bout reads its own strap here too.
-        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        val ids = workoutDetailHrIds(source, rowDeviceId, from, to)
         val samples = runCatching {
             repository.hrSamplesFor(ids, readFrom, readTo, limit = 2_000)
         }.getOrDefault(emptyList())

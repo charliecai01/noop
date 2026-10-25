@@ -3006,34 +3006,52 @@ object IntelligenceEngine {
     }
 
     /**
-     * Day Effort's heart rate ([EffortHrMerge]): the owner's calendar day with its gaps filled from imported
-     * workout HR ([com.noop.data.HealthWorkoutHr]). null when the owner IS that source, or it has nothing in
-     * [from]..[to], so such a day is scored exactly as before. Out of line for the scoring method's bytecode
-     * budget. Twin of Swift `IntelligenceEngine.effortDayHr`.
+     * Day Effort's heart rate ([EffortHrMerge]): the owner's calendar day with its gaps filled from each
+     * supplemental source in turn ([com.noop.data.HealthWorkoutHr.supplementIds]: a chest strap NOOP recorded,
+     * then imported workout HR). Each pass treats what the previous ones kept as the owner, so no stretch is
+     * counted twice. null when no source other than the owner has anything in [from]..[to], so such a day is
+     * scored exactly as before. Out of line for the scoring method's bytecode budget. Twin of Swift
+     * `IntelligenceEngine.effortDayHr`.
      */
     internal suspend fun effortDayHr(
         repo: com.noop.data.WhoopRepository, ownerHr: List<com.noop.data.HrSample>, owner: String, from: Long, to: Long,
     ): List<com.noop.data.HrSample>? {
-        if (owner == com.noop.data.HealthWorkoutHr.DEVICE_ID) return null
-        val supplement = runCatching {
-            repo.hrSamplesForDevice(com.noop.data.HealthWorkoutHr.DEVICE_ID, from, to, STREAM_LIMIT)
-        }.getOrNull()
-        if (supplement.isNullOrEmpty()) return null
-        return EffortHrMerge.gapFill(ownerHr, supplement)
+        var merged = ownerHr
+        var filled = false
+        for (id in effortSupplementIds(repo, owner)) {
+            val supplement = runCatching { repo.hrSamplesForDevice(id, from, to, STREAM_LIMIT) }.getOrNull()
+            if (supplement.isNullOrEmpty()) continue
+            merged = EffortHrMerge.gapFill(merged, supplement)
+            filled = true
+        }
+        return if (filled) merged else null
     }
 
     /** The day-cache key segment for [effortDayHr]'s input. Empty when that span has no supplemental HR, so
-     *  every such key is unchanged; otherwise its count and newest ts, so a ride imported after the day was
-     *  cached invalidates it. Twin of Swift `IntelligenceEngine.effortSupplementWitness`. */
+     *  every such key is unchanged; otherwise each source's count and newest ts, so a ride recorded or
+     *  imported after the day was cached invalidates it. Imported workout HR keeps its original
+     *  `|effortSupp=` form so days cached before strap recordings counted keep their keys. Twin of Swift
+     *  `IntelligenceEngine.effortSupplementWitness`. */
     internal suspend fun effortSupplementWitness(
         repo: com.noop.data.WhoopRepository, owner: String, from: Long, to: Long,
     ): String {
-        if (owner == com.noop.data.HealthWorkoutHr.DEVICE_ID) return ""
-        val (count, maxTs) = runCatching {
-            repo.hrFingerprintWindow(com.noop.data.HealthWorkoutHr.DEVICE_ID, from, to)
-        }.getOrNull() ?: return ""
-        return if (count > 0) "|effortSupp=$count:$maxTs" else ""
+        val out = StringBuilder()
+        for (id in effortSupplementIds(repo, owner)) {
+            val (count, maxTs) = runCatching { repo.hrFingerprintWindow(id, from, to) }.getOrNull() ?: continue
+            if (count <= 0) continue
+            out.append(
+                if (id == com.noop.data.HealthWorkoutHr.DEVICE_ID) "|effortSupp=$count:$maxTs"
+                else "|effortSupp[$id]=$count:$maxTs"
+            )
+        }
+        return out.toString()
     }
+
+    /** [com.noop.data.HealthWorkoutHr.supplementIds] over the registry as stored. An unreadable registry still
+     *  yields the imported workout source, which is what this path read before straps counted. Twin of Swift
+     *  `IntelligenceEngine.effortSupplementIds`. */
+    internal suspend fun effortSupplementIds(repo: com.noop.data.WhoopRepository, owner: String): List<String> =
+        com.noop.data.HealthWorkoutHr.supplementIds(runCatching { repo.pairedDevices() }.getOrDefault(emptyList()), owner)
 
     /** The pass-1 R-R sliding read window. Same reason as [hrReadWindow] for living out here. */
     private fun rrReadWindow(repo: com.noop.data.WhoopRepository, activeWhoop5: Boolean) =

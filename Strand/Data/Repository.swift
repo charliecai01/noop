@@ -1252,15 +1252,19 @@ final class Repository: ObservableObject {
         return byTs.values.sorted { $0.ts < $1.ts }
     }
 
-    /// The live Effort input for `[from, to]`: `hrSamples` with its gaps filled from imported workout HR
-    /// (`EffortHRMerge`), the same stream the stored day is scored from, so a ride the strap never saw
-    /// lifts the ring before the next scoring pass. Unchanged when no workout HR falls in the window.
+    /// The live Effort input for `[from, to]`: `hrSamples` with its gaps filled from each supplemental
+    /// source in turn (a recorded chest strap, then imported workout HR; `EffortHRMerge`), the same stream
+    /// the stored day is scored from, so a ride the WHOOP never saw lifts the ring before the next scoring
+    /// pass. Unchanged when no supplemental HR falls in the window.
     func effortHrSamples(from: Int, to: Int, limit: Int) async -> [HRSample] {
-        let owner = await hrSamples(from: from, to: to, limit: limit)
-        guard let store = await ensureStore(),
-              let supplement = try? await store.hrSamples(deviceId: HealthWorkoutHR.deviceId,
-                                                          from: from, to: to, limit: limit) else { return owner }
-        return EffortHRMerge.gapFill(primary: owner, supplement: supplement)
+        var merged = await hrSamples(from: from, to: to, limit: limit)
+        guard let store = await ensureStore() else { return merged }
+        for id in IntelligenceEngine.effortSupplementIds(owner: deviceId, store: store) {
+            guard let supplement = try? await store.hrSamples(deviceId: id, from: from, to: to, limit: limit)
+            else { continue }
+            merged = EffortHRMerge.gapFill(primary: merged, supplement: supplement)
+        }
+        return merged
     }
 
     /// R-R beats across the active physical WHOOP and canonical history. Exact duplicates are removed
@@ -3327,6 +3331,52 @@ final class Repository: ObservableObject {
     // keep the bucket size / sample cap consistent with the rest of the app and give the view one
     // call site to await. NEVER mutate , pure reads.
 
+    /// The ids whose HR backs a workout's detail card: chart, zones and heart-rate recovery. A strap-native
+    /// row (manual or detected) reads `workoutHrDeviceIds` as before. An IMPORTED row has no strap of its
+    /// own, so it reads the first of `importedWorkoutHrCandidates` with any heart rate in `[from, to]`: a
+    /// chest strap NOOP recorded on the ride, then the WHOOP union, then the HR the health store associated
+    /// with the workout. One stream answers, never a mix, so the curve and the zones describe one sensor.
+    /// A ride with none of them falls back to the union, which charts nothing, as before. Kotlin twin:
+    /// `AppViewModel.workoutDetailHrIds`.
+    func workoutDetailHrIds(source: String, from: Int, to: Int) async -> [String] {
+        let fallback = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
+                                               importedIds: importedReadIds)
+        let cls = WorkoutSource.classify(source)
+        guard cls != .detected, cls != .manual, to > from, let store = await ensureStore() else { return fallback }
+        let rows = (try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? []
+        let candidates = Self.importedWorkoutHrCandidates(
+            supplementIds: HealthWorkoutHR.supplementIds(rows: rows, excluding: nil), fallback: fallback)
+        for ids in candidates {
+            for id in ids {
+                if let fp = try? await store.hrFingerprint(deviceId: id, from: from, to: to), fp.count > 0 {
+                    return ids
+                }
+            }
+        }
+        return fallback
+    }
+
+    /// The generic chest straps NOOP has recorded from (`HealthWorkoutHR.supplementIds` without the import
+    /// source), oldest-added first. The health-store import scores a ride from one of these before the
+    /// sparser copy the companion app wrote into the health store.
+    func recordedStrapIds() async -> [String] {
+        guard let store = await ensureStore() else { return [] }
+        let rows = (try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? []
+        return HealthWorkoutHR.supplementIds(rows: rows, excluding: HealthWorkoutHR.deviceId)
+    }
+
+    /// The streams `workoutDetailHrIds` tries for an imported workout, in order: each recorded chest strap
+    /// alone, then `fallback` (the WHOOP union, kept ahead of the health store because its 1 Hz trace is
+    /// the finer one on a ride the WHOOP was worn for), then imported workout HR alone. A strap already in
+    /// `fallback` is not tried twice. Kotlin twin: `WhoopRepository.importedWorkoutHrCandidates`.
+    nonisolated static func importedWorkoutHrCandidates(supplementIds: [String],
+                                                        fallback: [String]) -> [[String]] {
+        let straps = supplementIds.filter { $0 != HealthWorkoutHR.deviceId && !fallback.contains($0) }
+        let imported = supplementIds.contains(HealthWorkoutHR.deviceId) && !fallback.contains(HealthWorkoutHR.deviceId)
+            ? [[HealthWorkoutHR.deviceId]] : []
+        return straps.map { [$0] } + [fallback] + imported
+    }
+
     /// Downsampled HR over a workout window for the detail HR-curve. A short session wants a finer
     /// bucket than the Today 24h chart (300 s would flatten a 30-min run to ~6 points), so the bucket
     /// scales with duration: ~120 buckets across the window, floored at 15 s and capped at 300 s.
@@ -3340,8 +3390,7 @@ final class Repository: ObservableObject {
         guard to > from else { return [] }
         let span = to - from
         let bucket = max(15, min(300, span / 120))
-        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
-                                          importedIds: importedReadIds)
+        let ids = await workoutDetailHrIds(source: source, from: from, to: to)
         return await hrBuckets(deviceIds: ids, from: from, to: to, bucketSeconds: bucket)
     }
 
@@ -3357,8 +3406,7 @@ final class Repository: ObservableObject {
     /// without a row keeps today's behaviour.
     func workoutZoneMinutes(from: Int, to: Int, zoneSet: HRZoneSet, source: String = "") async -> [Double]? {
         guard to > from else { return nil }
-        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
-                                          importedIds: importedReadIds)
+        let ids = await workoutDetailHrIds(source: source, from: from, to: to)
         let samples = await hrSamples(deviceIds: ids, from: from, to: to)
         guard !samples.isEmpty else { return nil }
         let tiz = HRZones.timeInZone(samples, zoneSet: zoneSet)
@@ -3378,8 +3426,7 @@ final class Repository: ObservableObject {
         guard to > from, maxHR > 0 else { return nil }
         let readFrom = max(from, to - HeartRateRecovery.eligibilityLookbackSeconds)
         let readTo = to + 5 * 60 + HeartRateRecovery.measurementToleranceSeconds
-        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
-                                          importedIds: importedReadIds)
+        let ids = await workoutDetailHrIds(source: source, from: from, to: to)
         let samples = await hrSamples(deviceIds: ids, from: readFrom, to: readTo, limit: 2_000)
         return HeartRateRecovery.calculate(samples: samples, workoutStart: from, workoutEnd: to,
                                            maxHR: maxHR)

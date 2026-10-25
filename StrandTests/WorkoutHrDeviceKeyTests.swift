@@ -70,4 +70,23 @@ final class WorkoutHrDeviceKeyTests: XCTestCase {
                                           importedIds: ["my-whoop", "whoop-zzz"]),
             ["whoop-aabbcc"])
     }
+
+    // An imported workout's detail card tries each recorded chest strap alone, then the WHOOP union, then
+    // imported workout HR alone. Same cases and literal as Kotlin `WorkoutHrDeviceKeyTest`.
+    func testImportedWorkoutHrCandidatesPutStrapsFirstAndTheHealthStoreLast() {
+        let union = ["whoop-aabbcc", "my-whoop"]
+        func render(_ c: [[String]]) -> String { c.map { $0.joined(separator: ",") }.joined(separator: ";") }
+        XCTAssertEqual(render(Repository.importedWorkoutHrCandidates(
+            supplementIds: ["strap-C", "strap-A", "apple-health-workouts"], fallback: union)),
+            "strap-C;strap-A;whoop-aabbcc,my-whoop;apple-health-workouts")
+        XCTAssertEqual(render(Repository.importedWorkoutHrCandidates(
+            supplementIds: ["apple-health-workouts"], fallback: union)),
+            "whoop-aabbcc,my-whoop;apple-health-workouts")
+        // A strap that is itself the active strap is already in the union and is not tried twice.
+        XCTAssertEqual(render(Repository.importedWorkoutHrCandidates(
+            supplementIds: ["strap-C", "apple-health-workouts"], fallback: ["strap-C", "my-whoop"])),
+            "strap-C,my-whoop;apple-health-workouts")
+        XCTAssertEqual(render(Repository.importedWorkoutHrCandidates(supplementIds: [], fallback: ["my-whoop"])),
+                       "my-whoop")
+    }
 }

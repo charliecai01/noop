@@ -399,27 +399,47 @@ final class IntelligenceEngine: ObservableObject {
         return dayStart < nowLocalMidnight ? nextMidnight : min(nextMidnight, now)
     }
 
-    /// Day Effort's heart rate (`EffortHRMerge`): the owner's calendar day with its gaps filled from
-    /// imported workout HR (`HealthWorkoutHR`). nil when the owner IS that source, or it has nothing in
-    /// `[from, to]`, so such a day is scored exactly as before. Kotlin twin: `IntelligenceEngine.effortDayHr`.
+    /// Day Effort's heart rate (`EffortHRMerge`): the owner's calendar day with its gaps filled from each
+    /// supplemental source in turn (`HealthWorkoutHR.supplementIds`: a chest strap NOOP recorded, then
+    /// imported workout HR). Each pass treats what the previous ones kept as the owner, so no stretch is
+    /// counted twice. nil when no source other than the owner has anything in `[from, to]`, so such a day
+    /// is scored exactly as before. Kotlin twin: `IntelligenceEngine.effortDayHr`.
     nonisolated static func effortDayHr(ownerHr: [HRSample], owner: String, from: Int, to: Int,
                                         store: WhoopStore) async -> [HRSample]? {
-        guard owner != HealthWorkoutHR.deviceId,
-              let supplement = try? await store.hrSamples(deviceId: HealthWorkoutHR.deviceId, from: from, to: to,
-                                                          limit: 200_000),
-              !supplement.isEmpty else { return nil }
-        return EffortHRMerge.gapFill(primary: ownerHr, supplement: supplement)
+        var merged = ownerHr
+        var filled = false
+        for id in effortSupplementIds(owner: owner, store: store) {
+            guard let supplement = try? await store.hrSamples(deviceId: id, from: from, to: to, limit: 200_000),
+                  !supplement.isEmpty else { continue }
+            merged = EffortHRMerge.gapFill(primary: merged, supplement: supplement)
+            filled = true
+        }
+        return filled ? merged : nil
     }
 
     /// The day-cache key segment for `effortDayHr`'s input. Empty when that day has no supplemental HR, so
-    /// the key of every such day is unchanged; otherwise its count and newest ts, so a ride imported after
-    /// the day was cached invalidates it. Kotlin twin: `IntelligenceEngine.effortSupplementWitness`.
+    /// the key of every such day is unchanged; otherwise each source's count and newest ts, so a ride
+    /// recorded or imported after the day was cached invalidates it. Imported workout HR keeps its original
+    /// `|effortSupp=` form so days cached before strap recordings counted keep their keys. Kotlin twin:
+    /// `IntelligenceEngine.effortSupplementWitness`.
     nonisolated static func effortSupplementWitness(owner: String, from: Int, to: Int,
                                                     store: WhoopStore) async -> String {
-        guard owner != HealthWorkoutHR.deviceId,
-              let fp = try? await store.hrFingerprint(deviceId: HealthWorkoutHR.deviceId, from: from, to: to),
-              fp.count > 0 else { return "" }
-        return "|effortSupp=\(fp.count):\(fp.maxTs)"
+        var out = ""
+        for id in effortSupplementIds(owner: owner, store: store) {
+            guard let fp = try? await store.hrFingerprint(deviceId: id, from: from, to: to),
+                  fp.count > 0 else { continue }
+            out += id == HealthWorkoutHR.deviceId
+                ? "|effortSupp=\(fp.count):\(fp.maxTs)"
+                : "|effortSupp[\(id)]=\(fp.count):\(fp.maxTs)"
+        }
+        return out
+    }
+
+    /// `HealthWorkoutHR.supplementIds` over the registry as stored. An unreadable registry still yields the
+    /// imported workout source, which is what this path read before straps counted.
+    nonisolated static func effortSupplementIds(owner: String, store: WhoopStore) -> [String] {
+        let rows = (try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? []
+        return HealthWorkoutHR.supplementIds(rows: rows, excluding: owner)
     }
 
     /// The provided session the NO-NIGHT line reports as `providedLongest` / `providedLongestEnd`: the

@@ -30,6 +30,21 @@ public enum HealthWorkoutHR {
         return HRSample(ts: Int(startEpochSeconds.rounded(.down)), bpm: Int(bpm.rounded()))
     }
 
+    /// The sources whose stored HR may fill a day owner's gaps for Effort, in precedence order: every
+    /// generic BLE heart-rate strap (a non-WHOOP `.liveBLE` row, such as a Wahoo or Polar chest strap)
+    /// oldest-added first, then this import source. A strap NOOP recorded at 1 Hz outranks the sparser
+    /// copy a companion app wrote into the health store. Any status counts: a removed strap's recordings
+    /// were kept, and they are still the rider's heart rate. `owner` is left out, so a day is never filled
+    /// from itself. Ties on `addedAt` break on id, so both platforms agree. Kotlin twin:
+    /// `HealthWorkoutHr.supplementIds`.
+    public static func supplementIds(rows: [PairedDevice], excluding owner: String?) -> [String] {
+        let straps = rows
+            .filter { $0.sourceKind == .liveBLE && !SourceIdentity.isWhoop($0) }
+            .sorted { ($0.addedAt, $0.id) < ($1.addedAt, $1.id) }
+            .map(\.id)
+        return (straps + [deviceId]).filter { $0 != owner }
+    }
+
     /// The registry row that makes the source visible to the day-owner resolver. `paired`, never
     /// `active`, so it cannot displace the live strap; `.hr` is the only metric it can provide.
     public static func registryDevice(brand: String, now: Int) -> PairedDevice {

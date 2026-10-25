@@ -35,6 +35,25 @@ object HealthWorkoutHr {
         return HrSample(deviceId = DEVICE_ID, ts = epochSecond, bpm = Math.round(bpm).toInt())
     }
 
+    /**
+     * The sources whose stored HR may fill a day owner's gaps for Effort, in precedence order: every generic
+     * BLE heart-rate strap (a non-WHOOP [SourceKind.liveBLE] row, such as a Wahoo or Polar chest strap)
+     * oldest-added first, then this import source. A strap NOOP recorded at 1 Hz outranks the sparser copy
+     * a companion app wrote into the health store. Any status counts: a removed strap's recordings were
+     * kept, and they are still the rider's heart rate. [owner] is left out, so a day is never filled from
+     * itself. Ties on `addedAt` break on id, so both platforms agree. The WHOOP test is
+     * [com.noop.ble.SourceIdentity.isWhoop], inlined so this data-layer file does not reach into `ble`.
+     * Twin of Swift `HealthWorkoutHR.supplementIds`.
+     */
+    fun supplementIds(rows: List<PairedDeviceRow>, owner: String?): List<String> {
+        val straps = rows
+            .filter { it.sourceKind == SourceKind.liveBLE.name }
+            .filter { !(it.id == "my-whoop" || it.brand.equals("WHOOP", ignoreCase = true)) }
+            .sortedWith(compareBy<PairedDeviceRow>({ it.addedAt }, { it.id }))
+            .map { it.id }
+        return (straps + DEVICE_ID).filter { it != owner }
+    }
+
     /** The registry row that makes the source visible to the day-owner resolver. `paired`, never
      *  `active`, so it cannot displace the live strap; `hr` is the only metric it can provide. */
     fun registryDevice(brand: String, now: Long): PairedDeviceRow = PairedDeviceRow(

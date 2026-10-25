@@ -1679,6 +1679,7 @@ final class HealthKitBridge: ObservableObject {
         }
         RouteStore.storeAll(importedRoutes)
         let profile = repo.strainProfile
+        let strapIds = await repo.recordedStrapIds()
         var rows: [WorkoutRow] = []
         rows.reserveCapacity(workoutsAndRows.count)
         var workoutHr: [HRSample] = []
@@ -1688,9 +1689,10 @@ final class HealthKitBridge: ObservableObject {
             let appleSamples = await Self.fetchWorkoutHeartRate(for: workout, store: store)
             workoutHr += appleSamples
             let steps = await Self.fetchWorkoutSteps(for: workout, store: store)
-            // Prefer the HR stream HealthKit associates with this workout (for example, Apple Watch).
-            // If that stream is absent or too sparse to score, fall back to the locally stored strap
-            // trace for this exact workout window — the same trace that backs the detail chart.
+            // Prefer a chest strap NOOP recorded itself over this exact window (a Wahoo or Polar on the
+            // bike, stored at 1 Hz), then the HR stream HealthKit associates with this workout (for
+            // example, Apple Watch, or the strap's beats as its companion app thinned them), and only
+            // then the locally stored WHOOP trace. The first stream that can score the session wins.
             //
             // ONE stream answers the whole row. The streams are never merged, which would double-count
             // overlapping beats, and they are never split across fields either: a mean from the watch
@@ -1698,8 +1700,24 @@ final class HealthKitBridge: ObservableObject {
             // cannot reconcile, and with no watch beats at all it would print an Effort with no heart
             // rate to account for it. So when the fallback is what scores the session, it reports that
             // session's mean and peak too.
-            var samples = appleSamples
-            var effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0) }
+            var samples: [HRSample] = []
+            var effort: Double?
+            if let profile {
+                for id in strapIds where effort == nil {
+                    // A strap can log more than one row a second, so a long ride needs headroom past
+                    // the 20 000 the WHOOP read below allows.
+                    let strapSamples = await repo.hrSamples(deviceIds: [id], from: startTs, to: endTs,
+                                                            limit: 50_000)
+                    if let strapEffort = Self.scoredEffort(strapSamples, profile: profile) {
+                        effort = strapEffort
+                        samples = strapSamples
+                    }
+                }
+            }
+            if effort == nil {
+                samples = appleSamples
+                effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0) }
+            }
             if effort == nil, let profile {
                 let hrDeviceIds = Repository.workoutHrDeviceIds(
                     source: Self.appleWorkoutSource,

@@ -38,6 +38,37 @@ final class HealthWorkoutHRTests: XCTestCase {
         XCTAssertNil(d.peripheralId)
     }
 
+    /// The oracle the Kotlin `HealthWorkoutHrTest` pastes verbatim. Generic `.liveBLE` straps of any status
+    /// come first, oldest-added and then by id; a WHOOP under any spelling, Oura, FTMS, the Apple Watch and
+    /// the import row itself are never straps; the import source closes the list; the owner is left out.
+    func testSupplementIdsMatchTheKotlinOracle() {
+        func row(_ id: String, _ brand: String, _ kind: SourceKind, _ status: DeviceStatus,
+                 _ addedAt: Int) -> PairedDevice {
+            PairedDevice(id: id, brand: brand, model: "", sourceKind: kind, capabilities: [.hr],
+                         status: status, addedAt: addedAt, lastSeenAt: addedAt)
+        }
+        let rows = [
+            row("my-whoop", "WHOOP", .liveBLE, .active, 50),
+            row("whoop-2", "whoop", .liveBLE, .paired, 60),
+            row("apple-health", "Apple", .liveAppleWatch, .archived, 70),
+            row("apple-health-workouts", "Apple Health workouts", .activityFile, .paired, 80),
+            row("strap-B", "Heart-rate strap", .liveBLE, .paired, 200),
+            row("strap-A", "Polar", .liveBLE, .archived, 200),
+            row("strap-C", "Garmin", .liveBLE, .paired, 100),
+            row("oura-1", "Oura", .oura, .paired, 90),
+            row("ftms-1", "Bike", .ftms, .paired, 95),
+        ]
+        let owners: [String?] = [nil, "my-whoop", "strap-A", "apple-health-workouts"]
+        var out = owners.map { HealthWorkoutHR.supplementIds(rows: rows, excluding: $0).joined(separator: ",") }
+        out.append(HealthWorkoutHR.supplementIds(rows: [], excluding: nil).joined(separator: ","))
+        XCTAssertEqual(out.joined(separator: "|"),
+                       "strap-C,strap-A,strap-B,apple-health-workouts"
+                       + "|strap-C,strap-A,strap-B,apple-health-workouts"
+                       + "|strap-C,strap-B,apple-health-workouts"
+                       + "|strap-C,strap-A,strap-B"
+                       + "|apple-health-workouts")
+    }
+
     /// Re-reading a sync window must not duplicate or rewrite: the insert ignores a repeated (deviceId, ts),
     /// and the samples are visible to the resolver's presence probe under the source's own id.
     func testReinsertingTheSameWindowIsANoOpAndTheResolverProbeSeesIt() async throws {
