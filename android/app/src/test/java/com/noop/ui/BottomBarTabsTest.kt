@@ -27,13 +27,23 @@ class BottomBarTabsTest {
         assertTrue("a bar tab must not also appear in the More sheet, found $both", both.isEmpty())
     }
 
-    /** Matching iOS: Today, Trends, Sleep, Coach, then More, which the bar appends itself. */
+    /** Matching iOS: Today, Trends, Sleep, Settings, then More, which the bar appends itself. */
     @Test
     fun theBarCarriesTheSameFourNamedTabsAsIOS() {
         assertEquals(
-            listOf(Destination.Today, Destination.Trends, Destination.Sleep, Destination.Coach),
+            listOf(Destination.Today, Destination.Trends, Destination.Sleep, Destination.Settings),
             barTabs.map { it.dest },
         )
+    }
+
+    /**
+     * Coach gave its slot to Settings and opens from Today's quick actions instead. It must not drift
+     * back into More, which would leave two doors to it in two different places.
+     */
+    @Test
+    fun coachIsNeitherABarTabNorAMoreRow() {
+        assertTrue(barTabs.none { it.dest == Destination.Coach })
+        assertTrue(drawerGroups.none { Destination.Coach in it.items })
     }
 
     /** A destination cannot occupy two slots; the More slot's selected state derives from this list. */

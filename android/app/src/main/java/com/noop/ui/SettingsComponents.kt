@@ -21,8 +21,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +55,12 @@ internal fun SettingsDisclosureGroup(
     onToggle: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // A Settings search reaches past the disclosure without opening it: the matching cards show in
+    // place, with no header, and the wearer's open/closed choice is left as it was (iOS parity).
+    if (SearchMatch.terms(LocalSettingsSearchQuery.current).isNotEmpty()) {
+        content()
+        return
+    }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 0f else -90f,
         label = uiString(R.string.l10n_settings_screen_advancedchevron_f22dfa01),
@@ -95,19 +104,51 @@ internal fun SettingsDisclosureGroup(
     }
 }
 
+// MARK: - Search (the Settings search bar)
+
+/** The Settings search text. Blank everywhere else, so cards on other screens always show. */
+internal val LocalSettingsSearchQuery = compositionLocalOf { "" }
+
+/**
+ * Registry of the searchable items the current search shows, so Settings can say when none match.
+ * Null outside Settings. Each shown item holds one entry for as long as it stays composed.
+ */
+internal val LocalSettingsSearchHits = compositionLocalOf<SnapshotStateMap<Any, Unit>?> { null }
+
+/**
+ * Shows [content] only while every word of the Settings search appears in [fields]. A Compose screen
+ * cannot read its own text back, so [fields] is the item's title, blurb and row labels, passed in.
+ */
+@Composable
+internal fun SettingsSearchItem(fields: List<String>, content: @Composable () -> Unit) {
+    if (!SearchMatch.matches(LocalSettingsSearchQuery.current, fields)) return
+    LocalSettingsSearchHits.current?.let { hits ->
+        val token = remember { Any() }
+        DisposableEffect(hits, token) {
+            hits[token] = Unit
+            onDispose { hits.remove(token) }
+        }
+    }
+    content()
+}
+
 // MARK: - Section card (ports SettingsView's private SettingsSection)
 
 /**
  * A grouped settings card: a "Settings" overline + icon + title header, an explanatory blurb, then
  * content. A faint brand-green wash anchors the card to NOOP's neutral chrome (mirrors macOS).
+ *
+ * The search bar filters at card level: a card shows while every word of the query appears in its
+ * title, blurb or [keywords], the labels of the rows inside it.
  */
 @Composable
 internal fun SettingsCard(
     icon: ImageVector,
     title: String,
     blurb: String,
+    keywords: List<String> = emptyList(),
     content: @Composable () -> Unit,
-) {
+) = SettingsSearchItem(listOf(title, blurb) + keywords) {
     NoopCard(padding = 20.dp, tint = Palette.accent) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -86,13 +86,16 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -915,6 +918,16 @@ fun SettingsScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) setBackgroundFromUri(uri) }
 
+    // The search bar's text. While it holds a word, every card is searched (the Advanced ones too, with
+    // the disclosure set aside) and only the matching cards show. Twin of the iOS SettingsView search.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val searchHits = remember { mutableStateMapOf<Any, Unit>() }
+    val searching = SearchMatch.terms(searchQuery).isNotEmpty()
+
+    CompositionLocalProvider(
+        LocalSettingsSearchQuery provides searchQuery,
+        LocalSettingsSearchHits provides searchHits,
+    ) {
     ScreenScaffold(
         title = uiString(R.string.l10n_settings_screen_settings_c7f73bb5),
         subtitle = "Your numbers, your strap, and how NOOP works. All on this phone.",
@@ -932,6 +945,8 @@ fun SettingsScreen(
         // (SharedPreferences is not observable; `mutate` bumps `rev` after each write).
         @Suppress("UNUSED_VARIABLE") val tick = rev
 
+        NoopSearchField(query = searchQuery, onQueryChange = { searchQuery = it })
+
         // --- Profile photo (optional, on-device) ---
         // Split into its own section ahead of the body-numbers Profile card, mirroring the iOS
         // SettingsView `profilePhotoCard` (person.crop.circle, the offline blurb). A large avatar + a
@@ -941,7 +956,8 @@ fun SettingsScreen(
         // Day streak (#569): consecutive days with a Charge score, computed on-device from your own
         // history. Uses NoopCard directly (not SettingsSection) to keep the wiring self-contained.
         val streaks by vm.streaks.collectAsStateWithLifecycle()
-        NoopCard(tint = Palette.chargeColor) {
+        // A readout, not a setting, so a search has nothing to find in it.
+        if (!searching) NoopCard(tint = Palette.chargeColor) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(uiString(R.string.settings_streak_title), style = NoopType.subhead, color = Palette.textPrimary)
                 Text(
@@ -959,6 +975,9 @@ fun SettingsScreen(
             icon = Icons.Outlined.AccountCircle,
             title = uiString(R.string.l10n_settings_screen_profile_photo_33f385bb),
             blurb = "Optional. Add a photo for the avatar in the top-left. Stored only on this phone. NOOP is offline, so it's never uploaded.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_remove_photo_c8f5eda8),
+            ),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -999,6 +1018,16 @@ fun SettingsScreen(
             icon = Icons.Outlined.Person,
             title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
             blurb = "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_age_ff9f1ff3),
+                uiString(R.string.l10n_settings_screen_sex_e301dd60),
+                uiString(R.string.l10n_settings_screen_weight_69c0b815),
+                uiString(R.string.l10n_settings_screen_height_3f608b49),
+                uiString(R.string.l10n_settings_screen_max_heart_rate_3d4ed858),
+                uiString(R.string.l10n_settings_screen_custom_hr_zones_84736ca5),
+                uiString(R.string.l10n_settings_screen_step_calibration_351c09bf),
+                uiString(R.string.l10n_settings_screen_use_weight_from_health_connect_c1fe3e2a),
+            ),
         ) {
             Column {
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_age_ff9f1ff3)) {
@@ -1297,6 +1326,9 @@ fun SettingsScreen(
             icon = Icons.Filled.Autorenew,
             title = uiString(R.string.settings_day_cycle_title),
             blurb = uiString(R.string.settings_day_cycle_description),
+            keywords = listOf(
+                uiString(R.string.settings_day_cycle_starts),
+            ),
         ) {
             Column {
                 SettingsFormRow(label = uiString(R.string.settings_day_cycle_starts)) {
@@ -1331,6 +1363,13 @@ fun SettingsScreen(
             icon = Icons.Filled.Straighten,
             title = uiString(R.string.l10n_settings_screen_units_12748281),
             blurb = uiString(R.string.units_settings_blurb),
+            keywords = listOf(
+                uiString(R.string.units_body_measurements),
+                uiString(R.string.units_exercise_distance_pace),
+                uiString(R.string.l10n_settings_screen_temperature_0a9062a9),
+                uiString(R.string.l10n_settings_screen_skin_temperature_fc103030),
+                uiString(R.string.l10n_settings_screen_effort_scale_81afa9ef),
+            ),
         ) {
             Column {
                 SettingsFormRow(label = uiString(R.string.units_body_measurements)) {
@@ -1467,6 +1506,18 @@ fun SettingsScreen(
             icon = Icons.Filled.Brightness6,
             title = uiString(R.string.l10n_settings_screen_appearance_41def7a0),
             blurb = uiString(R.string.settings_appearance_detail),
+            keywords = listOf(
+                uiString(R.string.settings_language),
+                uiString(R.string.l10n_settings_screen_clock_04f6b3ea),
+                uiString(R.string.l10n_settings_screen_preset),
+                uiString(R.string.l10n_settings_screen_theme_a797e309),
+                uiString(R.string.l10n_settings_screen_chart_colours_525f4a37),
+                uiString(R.string.l10n_settings_screen_accent),
+                uiString(R.string.l10n_settings_screen_trend_charts_19085c81),
+                uiString(R.string.l10n_settings_screen_ring_gauges_on_today_7a532de2),
+                uiString(R.string.l10n_settings_screen_gauge_numbers_db0d45e3),
+                uiString(R.string.l10n_settings_screen_reduce_motion_in_noop_59a6180d),
+            ),
         ) {
             // App-owned UI language. Recreates the Activity on change so every composable + non-composable
             // resource lookup switches together. Sits above the theme controls because it re-words them all.
@@ -1867,6 +1918,12 @@ fun SettingsScreen(
             icon = Icons.Filled.ViewAgenda,
             title = uiString(R.string.l10n_settings_screen_bottom_bar_f84098a9),
             blurb = uiString(R.string.l10n_settings_screen_how_the_navigation_bar_looks_f186b099),
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_ai_coach_130c3eab),
+                uiString(R.string.l10n_settings_screen_bottom_bar_overlay_f257c96f),
+                uiString(R.string.l10n_settings_screen_hide_bar_when_scrolling_b077d9f3),
+                uiString(R.string.l10n_settings_screen_bar_size_2304bfbb),
+            ),
         ) {
             // The Coach tab's master switch. It sits in this section because the tab is where a wearer
             // meets the feature, but it is NOT tab chrome: switching it off disables the AI itself, takes
@@ -2099,6 +2156,12 @@ fun SettingsScreen(
             icon = Icons.Filled.Sensors,
             title = uiString(R.string.l10n_settings_screen_strap_02b88eeb),
             blurb = "NOOP pairs directly with your WHOOP over Bluetooth: no WHOOP app, no cloud.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_disconnect_ed28e068),
+                uiString(R.string.l10n_settings_screen_rename_d3f4cb89),
+                uiString(R.string.l10n_settings_screen_hrv_window_e74320b8),
+                uiString(R.string.l10n_settings_screen_share_strap_log_for_bug_reports_b9802500),
+            ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
@@ -3096,6 +3159,10 @@ fun SettingsScreen(
             icon = Icons.Filled.Science,
             title = uiString(R.string.l10n_settings_screen_diagnostics_3af2279f),
             blurb = "A read-only export of the decoded sensor streams NOOP already stores. Works on any strap. Nothing is written to your device, and nothing is uploaded.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_export_raw_sensor_data_csv_a171b81e),
+                uiString(R.string.l10n_settings_screen_buzz_the_time_on_your_strap_06fc879d),
+            ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // --- Sleep staging (V2) — the DEFAULT engine after the 44-subject benchmark; toggle off to
@@ -3306,7 +3373,10 @@ fun SettingsScreen(
 
         // --- Trends report (#436) — shareable offline PDF over a date range. Self-contained
         // card (its own NoopCard + range picker + CTA), so it drops in without a SettingsSection wrapper.
-        TrendsReportExportSection(vm)
+        SettingsSearchItem(listOf(
+            uiString(R.string.l10n_trends_report_trends_report_pdf_481e8a5f),
+            uiString(R.string.l10n_trends_report_a_clean_shareable_one_page_pdf_a3c4f889),
+        )) { TrendsReportExportSection(vm) }
         } // end Advanced disclosure content Column
         } // end SettingsDisclosureGroup("Advanced")
 
@@ -3315,6 +3385,17 @@ fun SettingsScreen(
             icon = Icons.Filled.Science,
             title = uiString(R.string.l10n_settings_screen_health_wellness_93475778),
             blurb = "Optional, on-device wellness signals. Each is off by default, computed only on this phone from data you already have, and never a medical diagnosis.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_illness_heads_up_97e10035),
+                uiString(R.string.l10n_settings_screen_cycle_awareness_ffb94783),
+                uiString(R.string.l10n_settings_screen_hydration_tracking_579a2b32),
+                uiString(R.string.l10n_settings_screen_auto_detect_workouts_bed4cf2a),
+                uiString(R.string.l10n_journal_reminder_journal_reminder_0fdc0d9c),
+                uiString(R.string.l10n_settings_screen_keep_screen_on_during_a_workout_42d27284),
+                uiString(R.string.l10n_settings_screen_live_sessions_beta_2ca3a97f),
+                uiString(R.string.l10n_settings_screen_stress_check_ins_haptic_bf2746ba),
+                uiString(R.string.l10n_settings_screen_rhythm_experimental_12d357da),
+            ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsToggleRow(
@@ -3473,6 +3554,9 @@ fun SettingsScreen(
             icon = Icons.Filled.BugReport,
             title = uiString(R.string.l10n_settings_screen_test_centre_37b36828),
             blurb = "Turn on a test for the thing that's wrong, wear the strap, then tap Report. Your strap log, recalibrate, scheduled export and experimental probes all live here too.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_open_test_centre_a7fbe4e9),
+            ),
         ) {
             NoopButton(
                 text = uiString(R.string.l10n_settings_screen_open_test_centre_a7fbe4e9),
@@ -3494,6 +3578,9 @@ fun SettingsScreen(
             icon = Icons.Filled.Favorite,
             title = uiString(R.string.l10n_settings_screen_charge_d4e1aee4),
             blurb = "Charge is NOOP's daily readiness score, learned from your own HRV, resting heart rate and more over time. Your history stays.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_recalibrate_charge_baseline_52a05a26),
+            ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -3660,6 +3747,11 @@ fun SettingsScreen(
             icon = Icons.Filled.Storage,
             title = uiString(R.string.l10n_settings_screen_backup_restore_a1616284),
             blurb = "Move all your NOOP data to another phone. Export saves everything (history, sleeps, workouts, settings) to a single file you can copy across; import replaces this phone's data with a backup.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_export_0a116345),
+                uiString(R.string.l10n_settings_screen_import_4834caf8),
+                uiString(R.string.l10n_settings_screen_export_csv_6bce63a3),
+            ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Three equal-width buttons share the row (each takes a third via weight) — mirrors the
@@ -3746,6 +3838,9 @@ fun SettingsScreen(
             icon = Icons.Filled.CloudSync,
             title = uiString(R.string.l10n_settings_screen_automatic_backups_8a772f3c),
             blurb = "Have NOOP save a dated backup to a folder every day (around 1am) and keep the last several - so if data ever corrupts, restore the newest. Point the folder at Drive/Dropbox for off-device copies. Off until you switch it on.",
+            keywords = listOf(
+                uiString(R.string.l10n_settings_screen_set_up_automatic_backups_00b4780c),
+            ),
         ) {
             NoopButton(
                 text = uiString(R.string.l10n_settings_screen_set_up_automatic_backups_00b4780c),
@@ -4198,7 +4293,10 @@ fun SettingsScreen(
                 }
             }
         }
+
+        if (searching && searchHits.isEmpty()) SearchNoResults(searchQuery)
     }
+    } // end CompositionLocalProvider (Settings search)
 }
 
 private const val SUPPORT_EMAIL = "thenoopapp@gmail.com"

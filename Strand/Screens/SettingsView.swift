@@ -102,8 +102,8 @@ struct SettingsView: View {
     /// on Apple (Android defaults true) because the system behaviour may not fire on our
     /// `NavigationStack(path:)` tabs — see RootTabView.
     /// The Coach master switch, under the same `noop.` key Android writes. Default ON, so nothing changes
-    /// for an install that never opens this row. Read by `RootTabView` (the tab), Today (the launcher card)
-    /// and `CoachBriefScheduler` (the daily background brief).
+    /// for an install that never opens this row. Read by `RootTabView` (the Coach route), Today (the
+    /// Coach button and launcher card) and `CoachBriefScheduler` (the daily background brief).
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
     @AppStorage(ClockFormatPreference.defaultsKey)
@@ -252,6 +252,13 @@ struct SettingsView: View {
     /// Persisted so it remembers the user's choice; mirrors the Android `noop.settingsAdvancedOpen` key.
     @AppStorage(SettingsDisclosureDefaults.advancedOpenKey) private var advancedOpen = SettingsDisclosureDefaults.advancedOpenDefault
 
+    /// The search bar's text. While it holds a word, every card is searched (the Advanced ones too,
+    /// with the disclosure set aside) and only the matching cards show.
+    @State private var searchQuery = ""
+    /// Cards the current search shows; reported up by `SettingsSearchHits`.
+    @State private var searchHits = 0
+    private var isSearching: Bool { !SearchMatch.terms(searchQuery).isEmpty }
+
     var body: some View {
         ScreenScaffold(title: "Settings",
                        subtitle: "Your numbers, your strap, and how NOOP works. All on \(Platform.deviceNounPhrase).",
@@ -260,6 +267,7 @@ struct SettingsView: View {
                        // Settings' own frosted cards sit on the dark canvas below the sky band, unchanged.
                        topBackground: liquidScaffoldSky()) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
+                NoopLiquidGlassSearchField(text: $searchQuery, prompt: String(localized: "Search"))
                 // Everyday sections stay expanded (S3): the ones a first-run user actually needs.
                 profileCard.staggeredAppear(index: 0)
                 unitsCard.staggeredAppear(index: 1)
@@ -268,7 +276,8 @@ struct SettingsView: View {
                 #if os(iOS)
                 liveNotificationsCard.staggeredAppear(index: 3)
                 #endif
-                streakCard.staggeredAppear(index: 4)
+                // A readout, not a setting, so a search has nothing to find in it.
+                if !isSearching { streakCard.staggeredAppear(index: 4) }
                 featuresCard.staggeredAppear(index: 5)
                 #if os(iOS)
                 syncCard.staggeredAppear(index: 6)
@@ -278,22 +287,30 @@ struct SettingsView: View {
                 // screen opens at ~6 sections instead of 11. Nothing is removed; every section here
                 // (Recovery / advanced scoring, Test Centre, the experimental probes + raw-capture, and
                 // Backup & restore) stays one tap away. Modelled on the Test Centre "Advanced" group.
-                SettingsDisclosureGroup(
-                    title: "Advanced",
-                    subtitle: "Recovery, HRV tuning, Test Centre, experimental probes, and backup. Tucked away to keep the everyday screen tidy.",
-                    isExpanded: $advancedOpen
-                ) {
-                    recoveryCard
-                    hrvCard   // #518: Continuous HRV capture + HRV window moved here out of the always-visible Strap card
-                    testCentreCard
-                    experimentalCard
-                    backupCard
+                // A search reaches past the disclosure without opening it: the matches show in place
+                // and the wearer's open/closed choice is left as it was.
+                if isSearching {
+                    advancedCards
+                } else {
+                    SettingsDisclosureGroup(
+                        title: "Advanced",
+                        subtitle: "Recovery, HRV tuning, Test Centre, experimental probes, and backup. Tucked away to keep the everyday screen tidy.",
+                        isExpanded: $advancedOpen
+                    ) {
+                        advancedCards
+                    }
+                    .staggeredAppear(index: 6)
                 }
-                .staggeredAppear(index: 6)
 
                 // About stays expanded at the foot (version, links and the help sheets people return to).
                 aboutCard.staggeredAppear(index: 7)
+
+                if isSearching && searchHits == 0 {
+                    SearchNoResults(query: searchQuery)
+                }
             }
+            .environment(\.settingsSearchQuery, searchQuery)
+            .onPreferenceChange(SettingsSearchHits.self) { searchHits = $0 }
         }
         .alert(backupAlertTitle, isPresented: $showBackupAlert) {
             Button("OK", role: .cancel) { }
@@ -358,13 +375,26 @@ struct SettingsView: View {
         #endif
     }
 
+    /// The cards behind the Advanced disclosure, shared by the disclosure and the search results.
+    @ViewBuilder private var advancedCards: some View {
+        recoveryCard
+        hrvCard   // #518: Continuous HRV capture + HRV window moved here out of the always-visible Strap card
+        testCentreCard
+        experimentalCard
+        backupCard
+    }
+
     // MARK: - Profile
 
     private var profileCard: some View {
         SettingsSection(
             icon: "person.fill",
             title: "Profile",
-            blurb: "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate."
+            blurb: "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate.",
+            keywords: [
+                "Date of birth", "Sex", "Weight", "Height", "Max heart rate", "Custom HR zones", "Day starts",
+                "Steps estimate", "Show custom background"
+            ]
         ) {
             VStack(spacing: 0) {
                 profilePhotoRow
@@ -929,7 +959,11 @@ struct SettingsView: View {
         SettingsSection(
             icon: "ruler",
             title: "Units",
-            blurb: "Choose body measurements and exercise distance separately. Your data is always stored the same way; these settings only change its display."
+            blurb: "Choose body measurements and exercise distance separately. Your data is always stored the same way; these settings only change its display.",
+            keywords: [
+                "Body measurements", "Exercise distance & pace", "Temperature", "Skin temperature",
+                "Effort scale"
+            ]
         ) {
             VStack(spacing: 0) {
                 FormRow(label: "Body measurements") {
@@ -1091,7 +1125,11 @@ struct SettingsView: View {
         SettingsSection(
             icon: "circle.lefthalf.filled",
             title: "Appearance",
-            blurb: "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas."
+            blurb: "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas.",
+            keywords: [
+                "Language", "Clock", "AI Coach", "Hide bar when scrolling", "Theme preset", "Chart colours",
+                "Accent colour", "Trend charts", "App icon", "Reduce motion in NOOP", "Card transparency"
+            ]
         ) {
             VStack(spacing: 0) {
                 // App-owned copy language. Apple binds a bundle localization at process launch, so this
@@ -1406,7 +1444,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "antenna.radiowaves.left.and.right",
             title: "Strap",
-            blurb: "NOOP pairs directly with your WHOOP over Bluetooth: no WHOOP app, no cloud."
+            blurb: "NOOP pairs directly with your WHOOP over Bluetooth: no WHOOP app, no cloud.",
+            keywords: ["Re-scan", "Disconnect", "Strap name", "Rename"]
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
@@ -1567,7 +1606,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "bell.badge",
             title: "Live notifications",
-            blurb: "Shown on the Lock Screen and in the Dynamic Island. A switch only hides one: NOOP still measures and records everything."
+            blurb: "Shown on the Lock Screen and in the Dynamic Island. A switch only hides one: NOOP still measures and records everything.",
+            keywords: ["Live heart rate", "Lift Log session", "Strap sync"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 liveNotificationSwitch("Live heart rate", isOn: $liveActivityEnabled,
@@ -1604,7 +1644,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "heart.text.square",
             title: "Recovery",
-            blurb: "Your Charge score learns a personal baseline from your heart-rate variability, resting heart rate and more over time. If a bad first week set it off, you can re-learn it from tonight. Your history stays."
+            blurb: "Your Charge score learns a personal baseline from your heart-rate variability, resting heart rate and more over time. If a bad first week set it off, you can re-learn it from tonight. Your history stays.",
+            keywords: ["Recalibrate Charge baseline"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 NoopButton("Recalibrate Charge baseline", systemImage: "arrow.triangle.2.circlepath", kind: .secondary) {
@@ -1645,7 +1686,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "testtube.2",
             title: "Test Centre",
-            blurb: "Turn on a test for the thing that's wrong, wear the strap, then tap Report. Your strap log, recalibrate, scheduled export and experimental probes all live here too."
+            blurb: "Turn on a test for the thing that's wrong, wear the strap, then tap Report. Your strap log, recalibrate, scheduled export and experimental probes all live here too.",
+            keywords: ["Open Test Centre"]
         ) {
             NavigationLink(destination: TestCentreView()) {
                 HStack {
@@ -1672,7 +1714,11 @@ struct SettingsView: View {
         SettingsSection(
             icon: "drop.fill",
             title: "Features",
-            blurb: "Optional trackers, off by default. Turn them on to add their cards. Everything stays on \(Platform.deviceNounPhrase)."
+            blurb: "Optional trackers, off by default. Turn them on to add their cards. Everything stays on \(Platform.deviceNounPhrase).",
+            keywords: [
+                "Hydration tracking", "Auto-detect workouts", "Journal reminder",
+                "Keep screen on during a workout"
+            ]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.space2 + 2) {
                 Toggle(isOn: $hydrationEnabled) {
@@ -1761,7 +1807,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "arrow.triangle.2.circlepath",
             title: "Sync",
-            blurb: "How NOOP behaves while it pulls stored history from your strap."
+            blurb: "How NOOP behaves while it pulls stored history from your strap.",
+            keywords: ["Keep screen on while syncing"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.space2 + 2) {
                 Toggle(isOn: $syncKeepScreenOn) {
@@ -1792,7 +1839,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "waveform.path.ecg",
             title: "HRV",
-            blurb: "Tune how NOOP captures and windows your heart-rate-variability reading."
+            blurb: "Tune how NOOP captures and windows your heart-rate-variability reading.",
+            keywords: ["Continuous HRV capture", "HRV window"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 // MARK: Continuous HRV capture — keep the dense beat-to-beat (R-R) stream armed 24/7.
@@ -1878,7 +1926,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "drop.fill",
             title: "Experimental · Liquid Today",
-            blurb: "A redesigned Today screen in the new liquid language: the scores as living liquid, a time-of-day sky, and a calmer layout. Same numbers, new look."
+            blurb: "A redesigned Today screen in the new liquid language: the scores as living liquid, a time-of-day sky, and a calmer layout. Same numbers, new look.",
+            keywords: ["Liquid Today (prototype)"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 Toggle(isOn: $liquidTodayEnabled) {
@@ -1904,7 +1953,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "shield.lefthalf.filled",
             title: "Experimental · Live Sessions",
-            blurb: "A one-tap guarded workout: the strap watches your heart rate against a band gated on today's Charge, and only ever buzzes to correct course. Silence means you're on track."
+            blurb: "A one-tap guarded workout: the strap watches your heart rate against a band gated on today's Charge, and only ever buzzes to correct course. Silence means you're on track.",
+            keywords: ["Live Sessions (beta)"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 Toggle(isOn: $liveSessionsBeta) {
@@ -1930,7 +1980,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "bed.double.fill",
             title: "Sleep staging",
-            blurb: "How NOOP splits a night into light / deep / REM. The V2 recipe is the default; turn it off to fall back to the older V1 staging."
+            blurb: "How NOOP splits a night into light / deep / REM. The V2 recipe is the default; turn it off to fall back to the older V1 staging.",
+            keywords: ["Sleep staging (V2)", "Motion-aware wake refinement"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 Toggle(isOn: $experimentalSleepV2Enabled) {
@@ -2009,7 +2060,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "waveform.path.ecg",
             title: "Experimental · Oura ring all-day heart rate",
-            blurb: "Oura ring only. Keeps your ring measuring heart rate through the day, standing it down only for your night. A WHOOP strap is not affected."
+            blurb: "Oura ring only. Keeps your ring measuring heart rate through the day, standing it down only for your night. A WHOOP strap is not affected.",
+            keywords: ["Oura ring: all-day heart rate & HRV"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 Toggle(isOn: $ouraAllDayLiveHREnabled) {
@@ -2036,7 +2088,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "doc.text.magnifyingglass",
             title: "Diagnostics",
-            blurb: "A read-only export of the decoded sensor streams NOOP already stores. Works on any strap. Nothing is written to your device, and nothing is uploaded."
+            blurb: "A read-only export of the decoded sensor streams NOOP already stores. Works on any strap. Nothing is written to your device, and nothing is uploaded.",
+            keywords: ["Export raw sensor data (CSV)"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 // MARK: Export raw sensor data (CSV) — a read-only diagnostic over the decoded streams
@@ -2149,7 +2202,8 @@ struct SettingsView: View {
         SettingsSection(
             icon: "externaldrive.fill",
             title: "Backup & restore",
-            blurb: "Move all your NOOP data to another machine. Export saves everything (history, sleeps, workouts, settings) to a single file you can copy across; import replaces \(Platform.deviceNounPhrase)'s data with a backup."
+            blurb: "Move all your NOOP data to another machine. Export saves everything (history, sleeps, workouts, settings) to a single file you can copy across; import replaces \(Platform.deviceNounPhrase)'s data with a backup.",
+            keywords: ["Backup & Sync to a folder…"]
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.space4) {
                 // Three labelled buttons must share a narrow iPhone row without wrapping mid-word
@@ -2340,7 +2394,11 @@ struct SettingsView: View {
         SettingsSection(
             icon: "info.circle.fill",
             title: "About",
-            blurb: "NOOP: all your data, none of the cloud."
+            blurb: "NOOP: all your data, none of the cloud.",
+            keywords: [
+                "What's new", "How NOOP works", "How your scores work", "Check for updates",
+                "Project home & source", "Diagnostics"
+            ]
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
@@ -2836,13 +2894,30 @@ private struct SettingsDisclosureGroup<Content: View>: View {
 
 /// A grouped settings card: a "Settings" overline + icon + title header, an explanatory blurb,
 /// then content. The surface stays neutral; accent blue is reserved for the icon and controls.
+///
+/// The search bar filters at card level: a card shows while every word of the query appears in its
+/// title, blurb or `keywords`. Keywords are the labels of the rows inside the card, reusing their
+/// catalogue keys so they search in the reader's language; a card cannot read its own content's text.
 private struct SettingsSection<Content: View>: View {
     let icon: String
-    let title: LocalizedStringKey
-    let blurb: LocalizedStringKey
+    let title: LocalizedStringResource
+    let blurb: LocalizedStringResource
+    var keywords: [LocalizedStringResource] = []
     @ViewBuilder var content: () -> Content
 
+    @Environment(\.settingsSearchQuery) private var query
+
+    private var matchesQuery: Bool {
+        SearchMatch.matches(query, fields: ([title, blurb] + keywords).map { String(localized: $0) })
+    }
+
     var body: some View {
+        if matchesQuery {
+            card.preference(key: SettingsSearchHits.self, value: 1)
+        }
+    }
+
+    private var card: some View {
         StrandCard(padding: NoopMetrics.space5) {
             VStack(alignment: .leading, spacing: NoopMetrics.space4) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -2864,6 +2939,24 @@ private struct SettingsSection<Content: View>: View {
             }
         }
     }
+}
+
+/// The Settings search text, read by every `SettingsSection` to decide whether it shows.
+private struct SettingsSearchQueryKey: EnvironmentKey {
+    static let defaultValue = ""
+}
+
+private extension EnvironmentValues {
+    var settingsSearchQuery: String {
+        get { self[SettingsSearchQueryKey.self] }
+        set { self[SettingsSearchQueryKey.self] = newValue }
+    }
+}
+
+/// How many `SettingsSection`s the current search shows, so the screen can say when none match.
+private struct SettingsSearchHits: PreferenceKey {
+    static let defaultValue = 0
+    static func reduce(value: inout Int, nextValue: () -> Int) { value += nextValue() }
 }
 
 // MARK: - iOS diagnostics sheet

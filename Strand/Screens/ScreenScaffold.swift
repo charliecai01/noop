@@ -245,6 +245,27 @@ struct DataPendingNote: View {
     }
 }
 
+/// What a search bar's screen shows in place of its content when nothing matches (More, Settings).
+struct SearchNoResults: View {
+    let query: String
+
+    var body: some View {
+        StrandCard(padding: 20) {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .accessibilityHidden(true)
+                Text("No results for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+        }
+    }
+}
+
 // MARK: - Scroll-to-top signal (#198 follow-up)
 
 /// An incrementing token the iOS tab shell bumps when the user re-taps the ALREADY-at-root active tab,
