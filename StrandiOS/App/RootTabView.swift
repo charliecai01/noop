@@ -40,6 +40,10 @@ struct RootTabView: View {
     @State private var quickAction: QuickAction?
     /// Presents the Devices manager (pair / switch bands) when a screen asks the shell to open it.
     @State private var showDevices = false
+    /// The same request made from inside a shell sheet (Live opened from quick actions). This shell view
+    /// can present only one sheet at a time, so `showDevices` set under an open sheet does nothing until
+    /// that sheet closes. This one is attached to the open sheet's content and stacks Devices on top.
+    @State private var showDevicesOverSheet = false
     /// A routed v5 pillar screen (Insights hub / Lab Book / fused record / Rhythm) presented as a sheet
     /// when a hub row deep-links to it via NavRouter. nil = closed.
     @State private var routedPillar: NavRouter.Destination?
@@ -181,6 +185,7 @@ struct RootTabView: View {
         // animation scoped to the sheet rather than the whole shell.
         .sheet(item: $quickAction) { action in
             quickActionDestination(action)
+                .sheet(isPresented: $showDevicesOverSheet) { devicesScreen }
         }
         // Live's "Manage devices" affordance (and any future cross-screen link to Devices) routes here:
         // present the Devices manager in its own nav stack, the same way the quick-action screens do.
@@ -191,13 +196,18 @@ struct RootTabView: View {
         // their own nav stack — the same idiom the quick-action + Devices screens use on iPhone.
         .sheet(item: $routedPillar) { dest in
             pillarScreen(dest)
+                .sheet(isPresented: $showDevicesOverSheet) { devicesScreen }
         }
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
         // shared pillar sheet. Cleared so the same tap can fire again later.
         .onChange(of: router.requestedDestination) { _, dest in
             switch dest {
             case .devices:
-                showDevices = true
+                if quickAction != nil || routedPillar != nil {
+                    showDevicesOverSheet = true
+                } else {
+                    showDevices = true
+                }
                 router.requestedDestination = nil
             case .insightsHub, .labBook, .fusedRecord, .rhythm, .alarms:
                 routedPillar = dest
@@ -297,6 +307,7 @@ struct RootTabView: View {
         homeScreenQuickActions.consume(action)
         withAnimation(Self.sheetEase) {
             showDevices = false
+            showDevicesOverSheet = false
             routedPillar = nil
             quickAction = destination
         }
@@ -405,7 +416,7 @@ struct RootTabView: View {
     }
 
     /// The Devices manager wrapped in its own nav stack + Done button (mirrors `quickScreen`, but
-    /// dismisses the dedicated `showDevices` sheet rather than the quick-action item).
+    /// dismisses whichever Devices sheet is open rather than the quick-action item).
     private var devicesScreen: some View {
         NavigationStack {
             DevicesView()
@@ -416,7 +427,10 @@ struct RootTabView: View {
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { showDevices = false }
+                        Button("Done") {
+                            showDevices = false
+                            showDevicesOverSheet = false
+                        }
                             .foregroundStyle(StrandPalette.accent)
                     }
                 }
