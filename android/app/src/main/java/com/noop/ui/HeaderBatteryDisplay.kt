@@ -8,7 +8,8 @@ package com.noop.ui
 object HeaderBatteryDisplay {
     sealed class State {
         /** The active device is neither the strap nor a ring that has reported its charge this link, so
-         *  the control has nothing to say and is not drawn. Distinct from [Offline], which asserts a strap
+         *  the control has no charge to report. It stays on the header as the way into Devices, drawing
+         *  the Devices icon. Distinct from [Offline], which asserts a strap
          *  that IS active is not connected — collapsing the two told a wearer with a streaming ring that
          *  their strap was not connected (#2208 / #2216). */
         data object NotActiveDevice : State()
@@ -28,8 +29,8 @@ object HeaderBatteryDisplay {
      *
      * A ring reports its OWN charge into [ringPct] (`SourceCoordinator.ouraBatteryPct`), cleared with the
      * source, so under a non-WHOOP active device a non-null [ringPct] is a reading from the ring that is
-     * live right now and is drawn as such; null (no ring, or none has reported yet) keeps the control off
-     * the header — a generic HR strap or a machine never writes it. Same resolution
+     * live right now and is drawn as such; null (no ring, or none has reported yet) shows no charge at all
+     * — a generic HR strap or a machine never writes it. Same resolution
      * [LiveConsoleReadout.batteryPercent] applies.
      */
     fun resolve(activeIsWhoop: Boolean, connected: Boolean, strapPct: Double?, ringPct: Int?): State {

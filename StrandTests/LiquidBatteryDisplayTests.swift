@@ -1,4 +1,5 @@
 import XCTest
+import StrandDesign
 @testable import Strand
 
 /// Pins the Liquid Today strap-battery ring's truth table (A3/B2,
@@ -69,21 +70,21 @@ final class LiquidBatteryDisplayTests: XCTestCase {
 
     /// The reported bug. `connected` goes true the moment ANY source streams, and the strap's percentage
     /// is never cleared, so under an active ring both halves of the old gate passed and Today drew the
-    /// strap's charge. A non-WHOOP active device must show nothing rather than someone else's number.
-    func testRingActiveShowsNothingEvenWithAStalestrapCharge() {
+    /// strap's charge. A non-WHOOP active device must show no charge rather than someone else's number.
+    func testRingActiveShowsNoChargeEvenWithAStalestrapCharge() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: 72.4, charging: false, ringPct: nil, ringCharging: false),
                        .notActiveDevice)
     }
 
     /// Charging is the strap's BATTERY_LEVEL event, so it is strap-only for the same reason. A ring must
     /// not inherit the strap's charger state either.
-    func testRingActiveShowsNothingWhileTheStrapCharges() {
+    func testRingActiveShowsNoChargeWhileTheStrapCharges() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: 88, charging: true, ringPct: nil, ringCharging: false),
                        .notActiveDevice)
     }
 
     /// A ring active with no strap charge ever recorded is the same answer, reached the other way.
-    func testRingActiveWithNoStrapChargeIsAlsoNotDrawn() {
+    func testRingActiveWithNoStrapChargeShowsNoChargeEither() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: nil, charging: nil, ringPct: nil, ringCharging: false),
                        .notActiveDevice)
     }
@@ -102,6 +103,16 @@ final class LiquidBatteryDisplayTests: XCTestCase {
     func testWhoopActiveStillReportsItsCharge() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: true, connected: true, batteryPct: 61, charging: false, ringPct: nil, ringCharging: false),
                        .charge(pct: 61, charging: false, isRing: false))
+    }
+
+    // MARK: - The control stays on the header
+
+    /// The circle is the way into Devices from Today, so no answer may remove it: under a non-WHOOP
+    /// active device it draws the Devices glyph. Removing a strap made this control vanish when it read
+    /// `.notActiveDevice` as "not drawn". It must not read as `.offline` either, per #2216 above.
+    func testNotActiveDeviceDrawsTheDevicesGlyphNotOffline() {
+        XCTAssertEqual(Display.notActiveDevice.indicatorState, .noBattery)
+        XCTAssertNotEqual(Display.notActiveDevice.indicatorState, Display.offline.indicatorState)
     }
 
     // MARK: - The ring's own charge
@@ -125,8 +136,8 @@ final class LiquidBatteryDisplayTests: XCTestCase {
 
     /// `LiveState.ouraBatteryPct` is cleared with the link (#2075), so under a non-WHOOP active device a
     /// nil ring charge means "no ring is live, or it has not reported yet" — and a generic HR strap or a
-    /// machine, which never write it, keep the control off the header exactly as before.
-    func testRingActiveWithNoRingChargeYetIsStillNotDrawn() {
+    /// machine, which never write it, show no charge either.
+    func testRingActiveWithNoRingChargeYetShowsNoCharge() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: 72, charging: false,
                                        ringPct: nil, ringCharging: false),
                        .notActiveDevice)

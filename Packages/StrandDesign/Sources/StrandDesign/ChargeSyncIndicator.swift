@@ -62,6 +62,9 @@ public struct ChargeSyncIndicator: View {
         case offline
         case pending(charging: Bool)
         case charge(percent: Double, charging: Bool)
+        /// The active device has no charge this control can report, so it draws the Devices glyph and
+        /// claims nothing about any battery. Distinct from `offline`, which says a strap is disconnected.
+        case noBattery
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -286,6 +289,10 @@ public struct ChargeSyncIndicator: View {
             Image(systemName: "bolt.slash")
                 .font(StrandFont.number(SyncRing.symbolGlyphSize))
                 .foregroundStyle(StrandPalette.textPrimary.opacity(SyncRing.dimGlyphOpacity))
+        case .noBattery:
+            Image(systemName: "badge.plus.radiowaves.right")
+                .font(StrandFont.number(SyncRing.symbolGlyphSize))
+                .foregroundStyle(StrandPalette.textPrimary.opacity(SyncRing.numberOpacity))
         }
     }
 
@@ -359,8 +366,8 @@ public struct ChargeSyncIndicator: View {
         endingSync = false
     }
 
-    /// True only for the state whose ring the wind-down actually parks at 12 o'clock. `.offline` and
-    /// `.pending` render as a plain crossfade (see `indicatorContents`) with no ring to align.
+    /// True only for the state whose ring the wind-down actually parks at 12 o'clock. `.offline`,
+    /// `.pending` and `.noBattery` render as a plain crossfade (see `indicatorContents`) with no ring to align.
     private var alignsRingOnExit: Bool {
         if case .charge = batteryState { return true }
         return false

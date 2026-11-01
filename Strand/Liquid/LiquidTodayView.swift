@@ -2731,13 +2731,29 @@ extension LiquidTodayView {
         /// ring, the strap's under an active strap — the label names the device the number belongs to.
         case charge(pct: Double, charging: Bool, isRing: Bool)
         /// The active device is neither the strap nor a ring that has reported its charge this link, so
-        /// this control has nothing to say and is not drawn.
+        /// this control has no charge to report. It stays on the header as the way into Devices, drawing
+        /// the Devices glyph: with a generic HR strap active it is the only device control on Today.
         ///
         /// Distinct from [offline], which asserts a strap that IS active is not connected. Collapsing the
         /// two put a crossed-out bolt and "strap not connected" on the header of a wearer whose ring was
         /// streaming, which is a different false claim from the one #2208 is about rather than a fix for
         /// it, and the only one a ring-only wearer would see every day. (@pipiche38 on #2216)
         case notActiveDevice
+
+        /// What the header control draws for this answer. `.notActiveDevice` must never map to `.offline`:
+        /// see that case.
+        var indicatorState: ChargeSyncIndicator.BatteryState {
+            switch self {
+            case .notActiveDevice:
+                return .noBattery
+            case .offline:
+                return .offline
+            case .pending(let charging):
+                return .pending(charging: charging)
+            case .charge(let percent, let charging, _):
+                return .charge(percent: percent, charging: charging)
+            }
+        }
 
         /// #2208: `activeIsWhoop` is required, not defaulted. `connected` alone was never enough: it is
         /// true the moment ANY source streams, `batteryPct` is the strap's and is never cleared, so under
@@ -2746,8 +2762,8 @@ extension LiquidTodayView {
         ///
         /// A ring reports its OWN charge into `ringPct` (`LiveState.ouraBatteryPct`), cleared with the
         /// link, so under a non-WHOOP active device a non-nil `ringPct` is a reading from the ring that is
-        /// live right now and is drawn as such; nil (no ring, or none has reported yet) keeps the control
-        /// off the header. `ringCharging` is the ring's charger state (`OuraWearState.charging`), the only
+        /// live right now and is drawn as such; nil (no ring, or none has reported yet) shows no charge at
+        /// all. `ringCharging` is the ring's charger state (`OuraWearState.charging`), the only
         /// charging evidence a ring gives. Same resolution `LiveConsoleReadout.batteryPercent` applies.
         ///
         /// No default values on purpose. A defaulted flag is one a future call site can forget, and
@@ -2901,43 +2917,26 @@ private struct LiquidBatteryButton: View {
         )
     }
 
-    private var indicatorState: ChargeSyncIndicator.BatteryState {
-        switch batteryDisplay {
-        case .offline, .notActiveDevice:
-            return .offline
-        case .pending(let charging):
-            return .pending(charging: charging)
-        case .charge(let percent, let charging, _):
-            return .charge(percent: percent, charging: charging)
-        }
-    }
-
     var body: some View {
-        // Not drawn at all when the active device is neither the strap nor a ring with a charge of its
-        // own to show. The alternative is a glyph that has to say SOMETHING about a strap nobody is
-        // wearing, and every option is a claim: a charge that is not the active device's, or a crossed-out
-        // bolt asserting a disconnection that is not the interesting fact. (#2208) A ring that HAS
-        // reported its charge is the active device's own reading, and #2208's fix left it undrawn only
-        // because the control could not yet tell whose number it held.
-        if case .notActiveDevice = batteryDisplay {
-            EmptyView()
-        } else {
-            Button { router.openDevices() } label: {
-                ChargeSyncIndicator(
-                    batteryState: indicatorState,
-                    syncing: syncing,
-                    chunks: syncChunks
-                )
-            }
-            .nativeLiquidGlassSyncButton()
-            .accessibilityLabel(batteryAccessibility)
-            .debouncedSyncSignal(syncingRaw, into: $syncing)
-            // DEBUG-gated at the CALL SITE too, not just in the body: in Release the harness must cost
-            // literally nothing, rather than an async task created and immediately returned per appearance.
-            #if DEBUG
-            .task { await runDemoSyncCycleIfNeeded() }
-            #endif
+        // Always drawn: this circle is the way into Devices from Today, whichever device is active. When
+        // the active device is neither the strap nor a ring with a charge of its own to show, it draws the
+        // Devices glyph, so it claims neither a charge that is not the active device's nor a disconnection
+        // that is not the interesting fact (#2208).
+        Button { router.openDevices() } label: {
+            ChargeSyncIndicator(
+                batteryState: batteryDisplay.indicatorState,
+                syncing: syncing,
+                chunks: syncChunks
+            )
         }
+        .nativeLiquidGlassSyncButton()
+        .accessibilityLabel(batteryAccessibility)
+        .debouncedSyncSignal(syncingRaw, into: $syncing)
+        // DEBUG-gated at the CALL SITE too, not just in the body: in Release the harness must cost
+        // literally nothing, rather than an async task created and immediately returned per appearance.
+        #if DEBUG
+        .task { await runDemoSyncCycleIfNeeded() }
+        #endif
     }
 
     /// DEBUG `--demo-sync` only: loop the syncing signal so the charge→sync morph plays in both
@@ -3005,7 +3004,7 @@ private struct LiquidBatteryButton: View {
 
         switch batteryDisplay {
         case .notActiveDevice:
-            return ""          // not drawn; the label is unreachable and must not claim anything
+            return String(localized: "Manage devices")   // names what the tap does, claims no charge
         case .offline:
             return String(localized: "Strap battery, strap not connected")
         case .pending(let charging):

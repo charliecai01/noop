@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
@@ -2691,17 +2692,16 @@ private fun LiquidTodayHeader(
             // disc → the quick-actions menu). Sized to match the rest of the liquid cluster (shared HeaderClusterControl).
             QuickActionDisc(onClick = onQuickActions)
             // (c) Active-device battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
-            // Not drawn when the active device is neither the strap nor a ring with a charge of its own to
-            // show: an empty "Strap battery" ring under a streaming ring is a control asserting something
-            // about a strap nobody is wearing. A ring that HAS reported its charge is the active device's
-            // own reading, and #2208's fix left it undrawn only because the control could not yet tell
-            // whose number it held.
+            // Always drawn: this circle is the way into Devices from Today, whichever device is active.
+            // When the active device is neither the strap nor a ring with a charge of its own to show, it
+            // draws the Devices icon, so it asserts nothing about a strap nobody is wearing (#2208).
             when (battery) {
-                HeaderBatteryDisplay.State.NotActiveDevice -> Unit
+                HeaderBatteryDisplay.State.NotActiveDevice ->
+                    LiquidBatteryRing(batteryPct = null, isRing = false, noBattery = true, onClick = onOpenDevices)
                 HeaderBatteryDisplay.State.Offline, HeaderBatteryDisplay.State.Pending ->
-                    LiquidBatteryRing(batteryPct = null, isRing = false, onClick = onOpenDevices)
+                    LiquidBatteryRing(batteryPct = null, isRing = false, noBattery = false, onClick = onOpenDevices)
                 is HeaderBatteryDisplay.State.Charge ->
-                    LiquidBatteryRing(batteryPct = battery.pct, isRing = battery.isRing, onClick = onOpenDevices)
+                    LiquidBatteryRing(batteryPct = battery.pct, isRing = battery.isRing, noBattery = false, onClick = onOpenDevices)
             }
         }
     }
@@ -2837,13 +2837,15 @@ private fun ChipCapsule(
 /** The liquid header active-device battery ring: when connected + a reading exists it draws a trimmed
  *  ring in the charge/warning/critical hue plus the % inside, else a bolt-slash glyph. [isRing] names the
  *  device in the label — "Strap battery" over a ring's charge would be the #2208 misattribution again, in
- *  the label instead of the number. Tap → Devices. Mirrors the iOS liquid header battery ring. */
+ *  the label instead of the number. [noBattery] draws the Devices icon for an active device with no charge
+ *  to report, and names the tap rather than a battery. Tap → Devices. Mirrors the iOS liquid header
+ *  battery ring. */
 @Composable
-private fun LiquidBatteryRing(batteryPct: Double?, isRing: Boolean, onClick: () -> Unit) {
+private fun LiquidBatteryRing(batteryPct: Double?, isRing: Boolean, noBattery: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val label = batteryPct?.let {
         uiString(if (isRing) R.string.today_ring_battery_percent else R.string.today_strap_battery_percent, it.roundToInt())
-    } ?: uiString(R.string.today_strap_battery)
+    } ?: uiString(if (noBattery) R.string.l10n_live_screen_manage_devices_e5c277ff else R.string.today_strap_battery)
     Box(
         modifier = Modifier
             .size(HeaderClusterControl)
@@ -2899,9 +2901,9 @@ private fun LiquidBatteryRing(batteryPct: Double?, isRing: Boolean, onClick: () 
             )
         } else {
             Icon(
-                Icons.AutoMirrored.Filled.BatteryUnknown,
+                if (noBattery) Icons.Filled.Sensors else Icons.AutoMirrored.Filled.BatteryUnknown,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.5f),
+                tint = Color.White.copy(alpha = if (noBattery) 0.9f else 0.5f),
                 modifier = Modifier.size(15.dp),
             )
         }
