@@ -2227,6 +2227,7 @@
     <string name="today_how_score_generic">Como é calculada esta pontuação</string>
     <string name="today_strap_battery">Bateria da pulseira</string>
     <string name="today_strap_battery_percent">Bateria da pulseira: %1$d por cento</string>
+    <string name="today_battery_pack">Bateria externa</string>
     <string name="today_ring_battery_percent">Bateria do anel: %1$d por cento</string>
     <string name="today_score_solid">FIÁVEL</string>
     <string name="today_charge_carried">Carga · %1$s</string>

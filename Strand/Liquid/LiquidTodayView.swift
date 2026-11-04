@@ -3124,7 +3124,8 @@ private struct LiquidSyncStatusRow: View {
     }
 }
 
-/// The strap-battery readout inside the Data Sources card. Owns LiveState; display-only.
+/// The strap-battery readout inside the Data Sources card, with the attached 5/MG battery pack's own
+/// charge on the row beneath it. Owns LiveState; display-only.
 private struct LiquidStrapBatteryRow: View {
     @EnvironmentObject var live: LiveState
     var body: some View {
@@ -3137,6 +3138,19 @@ private struct LiquidStrapBatteryRow: View {
                 Text(batteryText(pct: pct))
                     .font(StrandFont.number(15)).foregroundStyle(StrandPalette.textPrimary)
             }
+        }
+        // The pack is a separate gauge from the strap, so it gets its own row rather than a suffix on the
+        // strap's. Same gate as the strap row, and `packSocPct` is only set while the strap reports a pack
+        // attached (cleared on BATTERY_PACK_REMOVED and on disconnect), so the row never outlives the pack.
+        // The Devices card reads the same field, so the two can differ only in precision.
+        if live.connected, live.activeIsWhoop, let pack = live.packSocPct {
+            HStack {
+                Text("Battery pack").font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                Spacer()
+                Text("\(Int(pack.rounded()))%")
+                    .font(StrandFont.number(15)).foregroundStyle(StrandPalette.textPrimary)
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 

@@ -2300,6 +2300,7 @@
     <string name="today_how_score_generic">Come si calcola questo punteggio</string>
     <string name="today_strap_battery">Batteria della fascia</string>
     <string name="today_strap_battery_percent">Batteria della fascia al %1$d percento</string>
+    <string name="today_battery_pack">Pacco batteria</string>
     <string name="today_ring_battery_percent">Batteria dell\'anello al %1$d percento</string>
     <string name="today_score_solid">SOLIDO</string>
     <string name="today_charge_carried">Carica · %1$s</string>

@@ -2356,6 +2356,7 @@
     <string name="today_how_score_generic">How this score is calculated</string>
     <string name="today_strap_battery">Strap battery</string>
     <string name="today_strap_battery_percent">Strap battery %1$d percent</string>
+    <string name="today_battery_pack">Battery pack</string>
     <string name="today_ring_battery_percent">Ring battery %1$d percent</string>
     <string name="today_score_solid">SOLID</string>
     <string name="today_charge_carried">Charge · %1$s</string>

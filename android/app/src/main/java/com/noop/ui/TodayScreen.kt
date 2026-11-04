@@ -290,6 +290,9 @@ private data class TodayLiveSnapshot(
     val whoop5: Boolean,
     /** Charging hides the runtime estimate (no "X left" while topping up). Rare flips, snapshot-safe. */
     val charging: Boolean?,
+    /** The attached 5/MG battery pack's own charge. Pushed every couple of minutes while a pack is on,
+     *  nil otherwise, so it adds no per-tick churn. */
+    val packSocPct: Double?,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -416,6 +419,7 @@ fun TodayScreen(
                 batteryPct = s.batteryPct,
                 whoop5 = s.whoop5Detected,
                 charging = s.charging,
+                packSocPct = s.packSocPct,
             )
         }
     }
@@ -1963,6 +1967,10 @@ fun TodayScreen(
                     liveSnap.batteryPct?.roundToInt() else null,
                 // The runtime estimate is banked from strap SoC samples, so it is the strap's alone.
                 strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
+                // The pack's own gauge, on its own row under the strap's. Same gate as the strap battery;
+                // packSocPct is cleared when the pack is removed or the link drops.
+                packBatteryPct = if (liveSnap.connected && activeIsWhoop)
+                    liveSnap.packSocPct?.roundToInt() else null,
                 expanded = sourcesExpanded,
                 onToggle = { sourcesExpanded = !sourcesExpanded },
             )
@@ -7353,6 +7361,7 @@ private fun TodaySourcesSection(
     footer: TodayFooterState,
     strapBatteryPct: Int? = null,
     strapBatteryEstimate: String? = null,
+    packBatteryPct: Int? = null,
     // S5: collapse to a single "Synced from: ..." summary line by default; tapping expands the full
     // per-source rows + strap battery inline. Nothing is removed, only folded behind a tap.
     expanded: Boolean = true,
@@ -7430,6 +7439,22 @@ private fun TodaySourcesSection(
                 batteryPct = strapBatteryPct,
                 batteryEstimate = strapBatteryEstimate,
             )
+            // Twin of the iOS "Battery pack" row under "Strap battery" (LiquidStrapBatteryRow).
+            packBatteryPct?.let { pack ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        uiString(R.string.today_battery_pack),
+                        style = NoopType.subhead,
+                        color = Palette.textSecondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        uiString(R.string.l10n_today_screen_pct_ee63e247, pack),
+                        style = NoopType.captionNumber,
+                        color = Palette.textPrimary,
+                    )
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
