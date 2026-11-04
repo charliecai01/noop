@@ -90,4 +90,17 @@ class SourceIdentityTest {
         assertEquals(WhoopBleClient.DEFAULT_DEVICE_ID,
             SourceIdentity.resolve("AA:BB:CC:DD:EE:03", listOf(legacy), currentId = "oura-abc"))
     }
+
+    /** A WHOOP paired after a Wahoo still lists first; each group keeps its registry order. Same inputs and
+     *  answer as the Swift twin's `testWhoopFirstPutsEveryWhoopAheadAndKeepsOrderWithinGroups`. */
+    @Test
+    fun `whoopFirst puts every WHOOP ahead and keeps order within groups`() {
+        val wahoo = row("strap-1", "Wahoo", null)
+        val whoopA = row("whoop-a", "WHOOP", null)
+        val polar = row("strap-2", "Polar", null)
+        val legacy = row(WhoopBleClient.DEFAULT_DEVICE_ID, "", null)
+        assertEquals(listOf("whoop-a", WhoopBleClient.DEFAULT_DEVICE_ID, "strap-1", "strap-2"),
+            SourceIdentity.whoopFirst(listOf(wahoo, whoopA, polar, legacy)).map { it.id })
+        assertEquals(emptyList<String>(), SourceIdentity.whoopFirst(emptyList()).map { it.id })
+    }
 }

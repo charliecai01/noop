@@ -45,4 +45,12 @@ object SourceIdentity {
      */
     fun isWhoop(device: PairedDeviceRow): Boolean =
         device.id == WhoopBleClient.DEFAULT_DEVICE_ID || device.brand.equals("WHOOP", ignoreCase = true)
+
+    /**
+     * The order a device list shows: every WHOOP first, then everything else (a Wahoo, a ring, a machine),
+     * each group keeping the order it came in, which is the registry's `addedAt` order. Stable, so a
+     * re-render never reshuffles devices within a group. Twin of Swift `SourceIdentity.whoopFirst`.
+     */
+    fun whoopFirst(devices: List<PairedDeviceRow>): List<PairedDeviceRow> =
+        devices.filter { isWhoop(it) } + devices.filterNot { isWhoop(it) }
 }

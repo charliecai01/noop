@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.ble.SourceCoordinator
+import com.noop.ble.SourceIdentity
 import com.noop.analytics.AgreementState
 import com.noop.analytics.MetricArbitrationPolicy
 import com.noop.analytics.StrapComparison
@@ -166,15 +167,16 @@ fun DevicesScreen(
     var pickNewActive by remember { mutableStateOf(false) }
 
     val all = devices.orEmpty()
-    val activeDevices = all.filter { it.status != DeviceStatus.archived.name }
+    // WHOOP first, then the rest in pairing order (SourceIdentity.whoopFirst), here and in the switcher.
+    val activeDevices = SourceIdentity.whoopFirst(all.filter { it.status != DeviceStatus.archived.name })
     // #1300 tier 2: recompute the two-strap comparison when the strap set changes.
     LaunchedEffect(activeDevices) { strapCompare = loadStrapCompare(viewModel.repo, activeDevices) }
     val removedDevices = all.filter { it.status == DeviceStatus.archived.name }
     // The strap switcher's choices: every non-archived device plus any removed Bluetooth strap, so a
     // dropped strap stays selectable instead of the switcher vanishing with it.
-    val switcherDevices = all.filter {
+    val switcherDevices = SourceIdentity.whoopFirst(all.filter {
         it.status != DeviceStatus.archived.name || it.sourceKind == SourceKind.liveBLE.name
-    }
+    })
     val currentActiveName =
         all.firstOrNull { it.status == DeviceStatus.active.name }?.let { displayName(it) }
             ?: "Your current strap"

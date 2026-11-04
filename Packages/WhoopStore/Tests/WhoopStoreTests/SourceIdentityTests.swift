@@ -75,4 +75,15 @@ final class SourceIdentityTests: XCTestCase {
         XCTAssertEqual(SourceIdentity.resolve(address: "AA:BB:CC:DD:EE:03",
                                               rows: [legacy], currentId: "oura-abc"), "my-whoop")
     }
+
+    /// A WHOOP paired after a Wahoo still lists first; each group keeps its registry order.
+    func testWhoopFirstPutsEveryWhoopAheadAndKeepsOrderWithinGroups() {
+        let wahoo = row("strap-1", "Wahoo", nil)
+        let whoopA = row("whoop-a", "WHOOP", nil)
+        let polar = row("strap-2", "Polar", nil)
+        let legacy = row("my-whoop", "", nil)
+        XCTAssertEqual(SourceIdentity.whoopFirst([wahoo, whoopA, polar, legacy]).map(\.id),
+                       ["whoop-a", "my-whoop", "strap-1", "strap-2"])
+        XCTAssertEqual(SourceIdentity.whoopFirst([]).map(\.id), [])
+    }
 }

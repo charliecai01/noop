@@ -79,7 +79,10 @@ private struct DevicesContent: View {
     /// After removing the ACTIVE device with other devices still paired, prompt to pick a new active one.
     @State private var pickNewActive = false
 
-    private var activeDevices: [PairedDevice] { registry.devices.filter { $0.status != .archived } }
+    /// WHOOP first, then the rest in pairing order (`SourceIdentity.whoopFirst`), here and in the switcher.
+    private var activeDevices: [PairedDevice] {
+        SourceIdentity.whoopFirst(registry.devices.filter { $0.status != .archived })
+    }
     private var removedDevices: [PairedDevice] { registry.devices.filter { $0.status == .archived } }
     /// I-1: `activeDevices` minus import sources (cloud/file) — the candidates actually eligible for
     /// "make active". An import source is a data partition, not a live device; offering it here would let
@@ -89,7 +92,7 @@ private struct DevicesContent: View {
     /// that was dropped (Remove is the only way to let go of a non-WHOOP strap on iOS) must stay
     /// selectable, otherwise the switcher vanished the moment the second strap went away.
     private var switcherDevices: [PairedDevice] {
-        registry.devices.filter { $0.status != .archived || $0.sourceKind == .liveBLE }
+        SourceIdentity.whoopFirst(registry.devices.filter { $0.status != .archived || $0.sourceKind == .liveBLE })
     }
 
     /// #987: the active+connected strap's clock state, from the SAME pure ConnectionReadout parsers the

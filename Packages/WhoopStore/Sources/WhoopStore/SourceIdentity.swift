@@ -45,4 +45,11 @@ public enum SourceIdentity {
     public static func isWhoop(_ device: PairedDevice) -> Bool {
         device.id == "my-whoop" || device.brand.caseInsensitiveCompare("WHOOP") == .orderedSame
     }
+
+    /// The order a device list shows: every WHOOP first, then everything else (a Wahoo, a ring, a machine),
+    /// each group keeping the order it came in, which is the registry's `addedAt` order. Stable, so a
+    /// re-render never reshuffles devices within a group. Twin of the Kotlin `SourceIdentity.whoopFirst`.
+    public static func whoopFirst(_ devices: [PairedDevice]) -> [PairedDevice] {
+        devices.filter { isWhoop($0) } + devices.filter { !isWhoop($0) }
+    }
 }
