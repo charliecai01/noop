@@ -2307,17 +2307,6 @@ class WhoopBleClient(
         }
     }
 
-    /**
-     * Surface a non-WHOOP source's battery percent ([pct], 0–100) in the SAME live [state] the UI reads,
-     * so a generic strap / FTMS machine shows its charge where the WHOOP strap battery does. Additive twin
-     * of [publishExternalLiveHr]; called by [SourceCoordinator] ONLY while WHOOP's own BLE is paused (a
-     * non-WHOOP device is active), so it never races the WHOOP battery path. Out-of-range values are
-     * ignored. Mirrors the Swift StandardHRSource→LiveState.setBattery wiring.
-     */
-    fun publishExternalBattery(pct: Int) {
-        if (pct in 0..100) _state.update { it.copy(batteryPct = pct.toDouble()) }
-    }
-
     // MARK: Android Bluetooth handles.
     private val bluetoothManager: BluetoothManager? =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager

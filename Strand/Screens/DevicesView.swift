@@ -194,10 +194,10 @@ private struct DevicesContent: View {
                     pairingHint: device.status == .active ? live.pairingHint : nil,
                     // Reboot in flight + link currently down → "Reconnecting…" (#166).
                     isReconnecting: device.status == .active && live.rebootInProgress && !live.connected,
-                    // The live battery belongs to whichever device is ACTIVE + connected. A WHOOP, a
-                    // generic strap and an FTMS machine all funnel into live.batteryPct, but an Oura ring
-                    // does NOT: it reports its own charge, so an active ring row used to draw the strap's
-                    // stale number under the ring's name (#2075). Asked PER ROW rather than of the active
+                    // The live battery belongs to whichever device is ACTIVE + connected. live.batteryPct
+                    // is the WHOOP's alone (non-WHOOP sources no longer write it), and an Oura ring reports
+                    // its own charge, so an active ring row used to draw the strap's stale number under the
+                    // ring's name (#2075). Asked PER ROW rather than of the active
                     // device, which is the stronger question and the one this loop can actually answer.
                     liveBatteryPct: (device.status == .active && live.connected)
                         ? LiveConsoleReadout.batteryPercent(

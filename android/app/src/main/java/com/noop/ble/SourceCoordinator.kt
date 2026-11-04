@@ -92,10 +92,6 @@ class SourceCoordinator(
      *  [StandardHrSource] as its `log`; kept SEPARATE from [log] above (which defaults to logcat and only
      *  carries the multi-WHOOP adoption notice). Default no-op keeps existing call sites compiling. */
     private val straplog: (String) -> Unit = {},
-    /** Push a strap's battery percent into the live state (e.g. `ble::publishExternalBattery`), so a
-     *  generic strap / FTMS machine surfaces its charge where the WHOOP strap battery does. Default no-op
-     *  keeps existing call sites + JVM tests compiling unchanged. */
-    private val batterySink: (Int) -> Unit = {},
     /** Push the latest instantaneous speed/cadence/power from a connected standard fitness sensor
      *  (RSC/CSC/CPS), read ADDITIVELY alongside HR by [StandardHrSource], into the live state the in-workout
      *  UI observes (wired at the composition root to `ble::publishExternalSensorMetrics`). PURE ADDITIVE — it
@@ -418,6 +414,12 @@ class SourceCoordinator(
      * here (plus a conforming source); nothing else in the coordinator changes. Returns the source WITHOUT
      * connecting — the caller ([switchToStrap]) does the connect-by-address-else-scan bring-up. Mirrors
      * macOS `SourceCoordinator.makeSource(for:)`.
+     *
+     * Non-WHOOP battery: no source built here (or in [makeOuraSource]) passes `onBattery` through to the
+     * live state. `batteryPct` there is the WHOOP strap's charge. It survives a source switch, and it drives
+     * the strap's low/full battery alerts and runtime estimate, so a Wahoo's 0x2A19 written there was read
+     * as the WHOOP's. No readout showed it as the Wahoo's own charge: `LiveConsoleReadout.batteryPercent`
+     * returns the ring's number for every non-WHOOP device. Twin of the note above Swift `makeSource`.
      */
     private fun makeSource(id: String, row: PairedDeviceRow?): LiveHrSource {
         // Non-null in production (set at the composition root); only the JVM-test paths that never reach a
@@ -427,7 +429,6 @@ class SourceCoordinator(
             SourceKind.ftms.name -> FtmsSource(
                 context = ctx,
                 liveSink = { hr -> liveSink(hr, emptyList()) },  // machine HR → the existing live recorder
-                onBattery = batterySink,                          // machine battery → the same live state
                 log = straplog,
             )
             SourceKind.huami.name -> {
@@ -440,7 +441,6 @@ class SourceCoordinator(
                         scope.launch { runCatching { repo.insert(batch, deviceId) } }
                     },
                     log = straplog,
-                    onBattery = batterySink,
                 )
             }
             SourceKind.oura.name -> makeOuraSource(id, ctx, row)
@@ -457,7 +457,7 @@ class SourceCoordinator(
                         scope.launch { done(runCatching { repo.insert(batch, deviceId) }) }
                     },
                     log = straplog,   // generic-HR lifecycle → the SAME exported strap log (issue #421)
-                    onBattery = batterySink,  // strap battery → the same live state the WHOOP strap battery uses
+                    // No onBattery: see the non-WHOOP battery note on makeSource.
                     sensorSink = { metrics ->
                         // Additive speed/cadence/power → the coordinator's own flow the in-workout UI observes,
                         // AND the optionally-injected sink (default no-op). Never HR / R-R / scoring.
@@ -589,7 +589,7 @@ class SourceCoordinator(
             onsetKeying = { NoopPrefs.ouraOnsetKeying(ctx) },  // #1284 residual 3
             notifyMaskFull = { NoopPrefs.ouraNotifyMaskFull(ctx) },  // packed-notification A/B
             log = straplog,           // Oura connect/auth/stream lifecycle → the SAME exported strap log (#421)
-            onBattery = batterySink,  // ring battery → the same live state the WHOOP strap battery uses
+            // No onBattery: the ring publishes its own charge (ouraBatteryPct). See the note on makeSource.
             onModel = { model -> scope.launch { runCatching { registry.setModel(id, model) } } },  // #772: correct a name-guessed gen
             onSerial = { serial -> adoptOuraSerial(currentId = id, serial = serial) },  // #771
         )

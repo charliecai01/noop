@@ -289,10 +289,19 @@ final class SourceCoordinator: ObservableObject {
         onStrap = true
     }
 
+    // Non-WHOOP battery. None of the sources built below passes `onBattery` through to `live.setBattery`.
+    // `LiveState.batteryPct` is the WHOOP strap's charge:
+    // it is never cleared on a source switch, it banks into the WHOOP runtime estimate, and it drives the
+    // strap's low/full battery alerts. A Wahoo's 0x2A19 written there stayed under "Strap battery" on Today
+    // after switching back to the WHOOP until the WHOOP's next read, and left its readings in the estimator's
+    // discharge fit. No readout showed it as the Wahoo's own charge either: `LiveConsoleReadout.batteryPercent`
+    // returns the ring's number for every non-WHOOP device, so the write only ever reached WHOOP surfaces.
+    // An Oura ring's charge has its own field (`ouraBatteryPct`). Android twin: `SourceCoordinator.kt`.
+
     /// Build the isolated `LiveHRSource` for a device id from its registered `sourceKind` — the ONE place
     /// that maps a kind to a concrete driver. Adding a brand adds ONE arm here (and a conforming source);
-    /// nothing else in the coordinator changes. Each arm keeps its own bespoke construction (persist / log /
-    /// onBattery closures, plus Oura's ringGen / authKey / adoptIntent). Returns the source WITHOUT
+    /// nothing else in the coordinator changes. Each arm keeps its own bespoke construction (persist / log
+    /// closures, plus Oura's ringGen / authKey / adoptIntent). Returns the source WITHOUT
     /// connecting — the caller (`switchToStrap`) does the connect-by-identifier-else-scan bring-up.
     private func makeSource(for id: String) -> any LiveHRSource {
         switch sourceKind(for: id) {
@@ -312,9 +321,8 @@ final class SourceCoordinator: ObservableObject {
                 Task { if let store = await storeHandle() { _ = try? await store.insert(streams, deviceId: id) } }
             },
             log: straplog,   // generic-HR lifecycle → the SAME exported strap log (issue #421)
-            // Surface the generic strap's standard Battery Service (0x180F) charge the SAME place the
-            // WHOOP strap battery shows (the Live/device status), via the shared LiveState funnel.
-            onBattery: { [live] pct in live.setBattery(Double(pct)) },
+            // No `onBattery`: `LiveState.batteryPct` is the WHOOP strap's charge (see the non-WHOOP
+            // battery note above `makeSource`).
             // #polar-debug: read the toggle live at connect so a Polar strap logs its identified model
             // (default off; the Test Centre only exposes the toggle when a Polar strap is paired).
             polarDebug: { UserDefaults.standard.bool(forKey: AppModel.polarDebugLoggingKey) })
@@ -325,8 +333,7 @@ final class SourceCoordinator: ObservableObject {
     private func makeFTMSSource(id: String) -> any LiveHRSource {
         FTMSSource(
             live: live,
-            log: straplog,
-            onBattery: { [live] pct in live.setBattery(Double(pct)) })
+            log: straplog)   // no `onBattery`: see the non-WHOOP battery note above `makeSource`
     }
 
     /// Build the EXPERIMENTAL Huami source (Amazfit / Zepp / Mi Band) for `id`. HR (standard 0x180D when
@@ -340,8 +347,7 @@ final class SourceCoordinator: ObservableObject {
             persist: { [storeHandle] streams in
                 Task { if let store = await storeHandle() { _ = try? await store.insert(streams, deviceId: id) } }
             },
-            log: straplog,
-            onBattery: { [live] pct in live.setBattery(Double(pct)) })
+            log: straplog)   // no `onBattery`: see the non-WHOOP battery note above `makeSource`
     }
 
     /// One duplicate-candidate's shape for the `dup-gen(#1284)` line: the window, its duration, and the two
@@ -443,7 +449,7 @@ final class SourceCoordinator: ObservableObject {
             allDayLiveHR: { UserDefaults.standard.bool(forKey: AppModel.ouraAllDayLiveHRKey) },   // item 27
             nightBand: ouraNightBand,   // item 27
             log: straplog,
-            onBattery: { [live] pct in live.setBattery(Double(pct)) },
+            // No `onBattery`: the ring publishes its own charge to `live.ouraBatteryPct`.
             onModel: { [registry] model in registry.setModel(id, model: model) },   // #772: correct a name-guessed gen
             onSerial: { [weak self] serial in self?.adoptOuraSerial(currentId: id, serial: serial) },  // #771
             onsetKeying: { UserDefaults.standard.bool(forKey: AppModel.ouraOnsetKeyingKey) },  // #1284 residual 3
