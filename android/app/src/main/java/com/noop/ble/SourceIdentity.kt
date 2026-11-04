@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import com.noop.data.PairedDeviceRow
+import com.noop.data.SourceKind
 
 /**
  * Which registry device a live BLE link's samples belong to (#1881).
@@ -47,10 +48,23 @@ object SourceIdentity {
         device.id == WhoopBleClient.DEFAULT_DEVICE_ID || device.brand.equals("WHOOP", ignoreCase = true)
 
     /**
-     * The order a device list shows: every WHOOP first, then everything else (a Wahoo, a ring, a machine),
-     * each group keeping the order it came in, which is the registry's `addedAt` order. Stable, so a
-     * re-render never reshuffles devices within a group. Twin of Swift `SourceIdentity.whoopFirst`.
+     * The order a device list shows: every WHOOP first, then the other Bluetooth devices (a Wahoo or other
+     * HR strap, a ring, a band, a gym machine), then everything else (imports). Each group keeps the order
+     * it came in, which is the registry's `addedAt` order. Stable, so a re-render never reshuffles devices
+     * within a group. Swift twin: `SourceIdentity.whoopFirst`.
      */
-    fun whoopFirst(devices: List<PairedDeviceRow>): List<PairedDeviceRow> =
-        devices.filter { isWhoop(it) } + devices.filterNot { isWhoop(it) }
+    fun whoopFirst(devices: List<PairedDeviceRow>): List<PairedDeviceRow> {
+        val (whoops, others) = devices.partition { isWhoop(it) }
+        val (bluetooth, rest) = others.partition { isBluetoothDevice(it) }
+        return whoops + bluetooth + rest
+    }
+
+    /** A device NOOP talks to over its own Bluetooth link, as opposed to an import. Swift twin:
+     *  `SourceIdentity.isBluetoothDevice`. */
+    fun isBluetoothDevice(device: PairedDeviceRow): Boolean = device.sourceKind in BLUETOOTH_KINDS
+
+    private val BLUETOOTH_KINDS = setOf(
+        SourceKind.liveBLE.name, SourceKind.historyBLE.name, SourceKind.ftms.name,
+        SourceKind.huami.name, SourceKind.oura.name,
+    )
 }

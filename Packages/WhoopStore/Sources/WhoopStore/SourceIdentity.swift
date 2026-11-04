@@ -46,10 +46,22 @@ public enum SourceIdentity {
         device.id == "my-whoop" || device.brand.caseInsensitiveCompare("WHOOP") == .orderedSame
     }
 
-    /// The order a device list shows: every WHOOP first, then everything else (a Wahoo, a ring, a machine),
-    /// each group keeping the order it came in, which is the registry's `addedAt` order. Stable, so a
-    /// re-render never reshuffles devices within a group. Twin of the Kotlin `SourceIdentity.whoopFirst`.
+    /// The order a device list shows: every WHOOP first, then the other Bluetooth devices (a Wahoo or
+    /// other HR strap, a ring, a band, a gym machine), then everything else (the Apple Watch via HealthKit,
+    /// imports). Each group keeps the order it came in, which is the registry's `addedAt` order. Stable, so
+    /// a re-render never reshuffles devices within a group. Kotlin twin: `SourceIdentity.whoopFirst`.
     public static func whoopFirst(_ devices: [PairedDevice]) -> [PairedDevice] {
-        devices.filter { isWhoop($0) } + devices.filter { !isWhoop($0) }
+        let whoops = devices.filter { isWhoop($0) }
+        let others = devices.filter { !isWhoop($0) }
+        return whoops + others.filter { isBluetoothDevice($0) } + others.filter { !isBluetoothDevice($0) }
+    }
+
+    /// A device NOOP talks to over its own Bluetooth link, as opposed to HealthKit or an import.
+    /// Kotlin twin: `SourceIdentity.isBluetoothDevice`.
+    static func isBluetoothDevice(_ device: PairedDevice) -> Bool {
+        switch device.sourceKind {
+        case .liveBLE, .historyBLE, .ftms, .huami, .oura: return true
+        case .liveAppleWatch, .cloudImport, .fileImport, .activityFile: return false
+        }
     }
 }

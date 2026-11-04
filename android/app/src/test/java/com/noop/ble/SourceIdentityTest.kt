@@ -103,4 +103,16 @@ class SourceIdentityTest {
             SourceIdentity.whoopFirst(listOf(wahoo, whoopA, polar, legacy)).map { it.id })
         assertEquals(emptyList<String>(), SourceIdentity.whoopFirst(emptyList()).map { it.id })
     }
+
+    /** An import paired before the Wahoo must not sit between the WHOOP and the Wahoo. Same shape as the
+     *  Swift twin's `testBluetoothDevicesComeBeforeHealthKitAndImports` (Android has no Apple Watch row). */
+    @Test
+    fun `bluetooth devices come before imports`() {
+        val csv = row("whoop-csv", "Import", null).copy(sourceKind = "fileImport")
+        val activity = row("activity-file", "Import", null).copy(sourceKind = "activityFile")
+        val wahoo = row("strap-1", "Wahoo", null)
+        val whoop = row("whoop-a", "WHOOP", null)
+        assertEquals(listOf("whoop-a", "strap-1", "whoop-csv", "activity-file"),
+            SourceIdentity.whoopFirst(listOf(csv, activity, wahoo, whoop)).map { it.id })
+    }
 }

@@ -86,4 +86,19 @@ final class SourceIdentityTests: XCTestCase {
                        ["whoop-a", "my-whoop", "strap-1", "strap-2"])
         XCTAssertEqual(SourceIdentity.whoopFirst([]).map(\.id), [])
     }
+
+    /// The reported order: an Apple Watch and a file import paired before the Wahoo must not sit between
+    /// the WHOOP and the Wahoo. Bluetooth devices come straight after the WHOOPs.
+    func testBluetoothDevicesComeBeforeHealthKitAndImports() {
+        func kind(_ id: String, _ brand: String, _ k: SourceKind) -> PairedDevice {
+            PairedDevice(id: id, brand: brand, model: "m", peripheralId: nil, sourceKind: k,
+                         capabilities: [.hr], status: .paired, addedAt: 0, lastSeenAt: 0)
+        }
+        let watch = kind("apple-watch", "Apple", .liveAppleWatch)
+        let csv = kind("whoop-csv", "Import", .fileImport)
+        let wahoo = kind("strap-1", "Wahoo", .liveBLE)
+        let whoop = kind("whoop-a", "WHOOP", .liveBLE)
+        XCTAssertEqual(SourceIdentity.whoopFirst([watch, csv, wahoo, whoop]).map(\.id),
+                       ["whoop-a", "strap-1", "apple-watch", "whoop-csv"])
+    }
 }
