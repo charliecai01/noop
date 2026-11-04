@@ -97,6 +97,9 @@ final class SourceCoordinator: ObservableObject {
     private var connectedWhoopUuid: String?
 
     private var cancellables = Set<AnyCancellable>()
+    /// Mirrors the live generic strap / FTMS / Huami source's own `batteryPct` into
+    /// `live.sourceBatteryPct`. Cancelled, and the mirror cleared, when that source is torn down.
+    private var sourceBatteryMirror: AnyCancellable?
 
     // MARK: - Init
 
@@ -290,13 +293,12 @@ final class SourceCoordinator: ObservableObject {
     }
 
     // Non-WHOOP battery. None of the sources built below passes `onBattery` through to `live.setBattery`.
-    // `LiveState.batteryPct` is the WHOOP strap's charge:
-    // it is never cleared on a source switch, it banks into the WHOOP runtime estimate, and it drives the
-    // strap's low/full battery alerts. A Wahoo's 0x2A19 written there stayed under "Strap battery" on Today
-    // after switching back to the WHOOP until the WHOOP's next read, and left its readings in the estimator's
-    // discharge fit. No readout showed it as the Wahoo's own charge either: `LiveConsoleReadout.batteryPercent`
-    // returns the ring's number for every non-WHOOP device, so the write only ever reached WHOOP surfaces.
-    // An Oura ring's charge has its own field (`ouraBatteryPct`). Android twin: `SourceCoordinator.kt`.
+    // `LiveState.batteryPct` is the WHOOP strap's charge: it is never cleared on a source switch, it banks
+    // into the WHOOP runtime estimate, and it drives the strap's low/full battery alerts. A Wahoo's 0x2A19
+    // written there stayed under "Strap battery" on Today after switching back to the WHOOP until the
+    // WHOOP's next read, and left its readings in the estimator's discharge fit. Instead a generic strap,
+    // FTMS machine or Huami band has its own `batteryPct` mirrored into `live.sourceBatteryPct` (see
+    // `mirrorSourceBattery`), and an Oura ring publishes `ouraBatteryPct`. Android twin: `SourceCoordinator.kt`.
 
     /// Build the isolated `LiveHRSource` for a device id from its registered `sourceKind` — the ONE place
     /// that maps a kind to a concrete driver. Adding a brand adds ONE arm here (and a conforming source);
@@ -314,7 +316,7 @@ final class SourceCoordinator: ObservableObject {
 
     /// Build the isolated `StandardHRSource` for a generic HR strap `id`.
     private func makeStandardSource(id: String) -> any LiveHRSource {
-        StandardHRSource(
+        let source = StandardHRSource(
             live: live,
             deviceId: id,
             persist: { [storeHandle] streams in
@@ -326,14 +328,18 @@ final class SourceCoordinator: ObservableObject {
             // #polar-debug: read the toggle live at connect so a Polar strap logs its identified model
             // (default off; the Test Centre only exposes the toggle when a Polar strap is paired).
             polarDebug: { UserDefaults.standard.bool(forKey: AppModel.polarDebugLoggingKey) })
+        mirrorSourceBattery(source.$batteryPct)
+        return source
     }
 
     /// Build the isolated `FTMSSource` for a gym machine `id`. HR (when the machine reports it) rides the
     /// SAME `LiveState` channel, so the existing live-workout recorder scores it — no new scoring loop.
     private func makeFTMSSource(id: String) -> any LiveHRSource {
-        FTMSSource(
+        let source = FTMSSource(
             live: live,
             log: straplog)   // no `onBattery`: see the non-WHOOP battery note above `makeSource`
+        mirrorSourceBattery(source.$batteryPct)
+        return source
     }
 
     /// Build the EXPERIMENTAL Huami source (Amazfit / Zepp / Mi Band) for `id`. HR (standard 0x180D when
@@ -341,13 +347,23 @@ final class SourceCoordinator: ObservableObject {
     /// other sources, so the existing live UI + recorder handle it — no new scoring loop, no fabricated
     /// data (the source stays at "—" when it can't read a real HR).
     private func makeHuamiSource(id: String) -> any LiveHRSource {
-        HuamiHRSource(
+        let source = HuamiHRSource(
             live: live,
             deviceId: id,
             persist: { [storeHandle] streams in
                 Task { if let store = await storeHandle() { _ = try? await store.insert(streams, deviceId: id) } }
             },
             log: straplog)   // no `onBattery`: see the non-WHOOP battery note above `makeSource`
+        mirrorSourceBattery(source.$batteryPct)
+        return source
+    }
+
+    /// Show the live non-WHOOP source's own charge as `live.sourceBatteryPct`. The source sets its
+    /// `batteryPct` from 0x2A19 and clears it on disconnect, so the mirror can never outlive the link.
+    private func mirrorSourceBattery(_ battery: Published<Int?>.Publisher) {
+        sourceBatteryMirror = battery
+            .receive(on: DispatchQueue.main)
+            .sink { [live] pct in live.sourceBatteryPct = pct }
     }
 
     /// One duplicate-candidate's shape for the `dup-gen(#1284)` line: the window, its duration, and the two
@@ -512,6 +528,8 @@ final class SourceCoordinator: ObservableObject {
         activeSource?.stop()
         activeSource = nil
         ouraSource = nil
+        sourceBatteryMirror = nil
+        live.sourceBatteryPct = nil   // a torn-down strap's charge must not outlive it
     }
 
     // MARK: - Identity adoption

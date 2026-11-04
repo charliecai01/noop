@@ -2728,10 +2728,11 @@ extension LiquidTodayView {
         /// Linked, but no charge reading has landed yet. `charging` is still knowable on its own.
         case pending(charging: Bool)
         /// A reading from the current link. `isRing` says whose: the ring's own charge under an active
-        /// ring, the strap's under an active strap — the label names the device the number belongs to.
+        /// ring, otherwise a strap's — the WHOOP's, or a generic HR strap's (a Wahoo) when that is active.
+        /// The label names the device the number belongs to.
         case charge(pct: Double, charging: Bool, isRing: Bool)
-        /// The active device is neither the strap nor a ring that has reported its charge this link, so
-        /// this control has no charge to report. It stays on the header as the way into Devices, drawing
+        /// The active device is not the WHOOP and has not reported its own charge this link, so this
+        /// control has no charge to report. It stays on the header as the way into Devices, drawing
         /// the Devices glyph: with a generic HR strap active it is the only device control on Today.
         ///
         /// Distinct from [offline], which asserts a strap that IS active is not connected. Collapsing the
@@ -2766,14 +2767,20 @@ extension LiquidTodayView {
         /// all. `ringCharging` is the ring's charger state (`OuraWearState.charging`), the only
         /// charging evidence a ring gives. Same resolution `LiveConsoleReadout.batteryPercent` applies.
         ///
+        /// `sourcePct` is the same idea for a generic HR strap, FTMS machine or Huami band
+        /// (`LiveState.sourceBatteryPct`): that source's own 0x2A19 charge, cleared with its link. It is
+        /// drawn as a strap's charge with no charging state, since 0x2A19 carries none.
+        ///
         /// No default values on purpose. A defaulted flag is one a future call site can forget, and
         /// forgetting it reinstates exactly this bug in a form that still compiles.
         static func resolve(activeIsWhoop: Bool, connected: Bool,
                             batteryPct: Double?, charging: Bool?,
-                            ringPct: Int?, ringCharging: Bool) -> StrapBatteryDisplay {
+                            ringPct: Int?, ringCharging: Bool,
+                            sourcePct: Int?) -> StrapBatteryDisplay {
             guard activeIsWhoop else {
-                guard let ringPct else { return .notActiveDevice }
-                return .charge(pct: Double(ringPct), charging: ringCharging, isRing: true)
+                if let ringPct { return .charge(pct: Double(ringPct), charging: ringCharging, isRing: true) }
+                if let sourcePct { return .charge(pct: Double(sourcePct), charging: false, isRing: false) }
+                return .notActiveDevice
             }
             guard connected else { return .offline }
             guard let pct = batteryPct else { return .pending(charging: charging == true) }
@@ -2903,7 +2910,8 @@ private struct LiquidBatteryButton: View {
                 batteryPct: DemoSyncHarness.batteryPercent,
                 charging: DemoSyncHarness.charging,
                 ringPct: nil,
-                ringCharging: false
+                ringCharging: false,
+                sourcePct: nil
             )
         }
         #endif
@@ -2913,7 +2921,8 @@ private struct LiquidBatteryButton: View {
             batteryPct: live.batteryPct,
             charging: live.charging,
             ringPct: live.ouraBatteryPct,
-            ringCharging: live.ouraWearState == .charging
+            ringCharging: live.ouraWearState == .charging,
+            sourcePct: live.sourceBatteryPct
         )
     }
 

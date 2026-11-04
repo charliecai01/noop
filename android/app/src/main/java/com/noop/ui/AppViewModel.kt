@@ -208,6 +208,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** The active Oura ring's own charge, for the Live Console (#2075). Mirrors [ouraWearState]. */
     val ouraBatteryPct: StateFlow<Int?> get() = noopApp.sourceCoordinator.ouraBatteryPct
 
+    /** The live generic HR strap's / machine's / band's own charge (a Wahoo's 0x2A19). */
+    val sourceBatteryPct: StateFlow<Int?> get() = noopApp.sourceCoordinator.sourceBatteryPct
+
+    /** The active non-WHOOP device's own charge, ring or generic source, for readouts that name the
+     *  active device. Twin of iOS `LiveState.activeOtherBatteryPct`. */
+    val otherBatteryPct: StateFlow<Int?> get() = noopApp.sourceCoordinator.otherBatteryPct
+
     /** The active ring's link phase, for the Live Console's ring status line + reconnect (#2305). */
     val ouraLinkPhase: StateFlow<com.noop.ble.OuraLiveSource.LinkPhase>
         get() = noopApp.sourceCoordinator.ouraLinkPhase
@@ -1146,7 +1153,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             batteryPct = LiveConsoleReadout.batteryPercent(
                                 activeIsWhoop = ble.activeDeviceIsWhoop,
                                 whoopPct = live.batteryPct,
-                                ringPct = noopApp.sourceCoordinator.ouraBatteryPct.value,
+                                ringPct = noopApp.sourceCoordinator.otherBatteryPct.value,
                             ),
                             connected = live.connected,
                             stressSeries = stressCurve?.points ?: emptyList(),

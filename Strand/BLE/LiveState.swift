@@ -152,6 +152,18 @@ public final class LiveState: ObservableObject {
     /// That is #2075, where a ring on 93% displayed the strap's 72%. Nil when no ring has reported.
     @Published public var ouraBatteryPct: Int? = nil
 
+    /// The charge of the active non-WHOOP, non-ring source: a generic HR strap (a Wahoo, a Polar), an FTMS
+    /// machine or a Huami band, read off its standard 0x2A19. Separate from [batteryPct] for the same reason
+    /// [ouraBatteryPct] is: that field is the WHOOP's, it survives a source switch, and it feeds the strap's
+    /// runtime estimate and battery alerts. `SourceCoordinator` mirrors the live source's own `batteryPct`
+    /// here, which that source clears on disconnect, and sets nil when the source is torn down.
+    @Published public var sourceBatteryPct: Int? = nil
+
+    /// The active non-WHOOP device's own charge, whichever kind it is. Only one non-WHOOP source is live at
+    /// a time, so at most one of the two is set. This is what `LiveConsoleReadout.batteryPercent` takes as
+    /// `ringPct` for a readout that names the active device.
+    public var activeOtherBatteryPct: Int? { ouraBatteryPct ?? sourceBatteryPct }
+
     /// Whether the ACTIVE device is a WHOOP, published so a readout can answer "whose charge is this"
     /// without observing `AppModel`.
     ///
@@ -1251,6 +1263,9 @@ public enum LiveConsoleReadout {
     /// A non-WHOOP active device never falls back to the WHOOP's charge. Showing nothing is the honest
     /// answer when a ring has not reported yet; showing the strap's number would be a confident lie, and
     /// it is the exact shape of the reported bug.
+    ///
+    /// `ringPct` is the active non-WHOOP device's OWN charge, whatever kind of device it is: callers pass
+    /// `LiveState.activeOtherBatteryPct`, which is the ring's or a generic strap's / machine's / band's.
     public static func batteryPercent(activeIsWhoop: Bool, whoopPct: Double?, ringPct: Int?) -> Int? {
         // ROUNDS, and deliberately. The surfaces this replaced disagreed: Devices and the widget rounded,
         // the Live Console truncated, so a strap on 72.6% read 73 on one screen and 72 on another. One

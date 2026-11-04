@@ -14,8 +14,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -148,6 +151,22 @@ class SourceCoordinator(
      *  reported the wrong band's battery under the right band's name. Mirrors [ouraWearState]. */
     private val _ouraBatteryPct = MutableStateFlow<Int?>(null)
     val ouraBatteryPct: StateFlow<Int?> = _ouraBatteryPct.asStateFlow()
+
+    /** The live generic HR strap's (a Wahoo's), FTMS machine's or Huami band's own 0x2A19 charge, mirrored
+     *  from that source's `batteryPct`, which it clears on disconnect. Separate from the WHOOP's
+     *  `batteryPct` for the reason [ouraBatteryPct] is. Twin of iOS `LiveState.sourceBatteryPct`. */
+    private val _sourceBatteryPct = MutableStateFlow<Int?>(null)
+    val sourceBatteryPct: StateFlow<Int?> = _sourceBatteryPct.asStateFlow()
+
+    /** The active non-WHOOP device's own charge, whichever kind it is: the ring's or the generic source's.
+     *  Only one non-WHOOP source is live at a time, so at most one is set. This is what
+     *  [com.noop.ui.LiveConsoleReadout.batteryPercent] takes as `ringPct`. Twin of iOS
+     *  `LiveState.activeOtherBatteryPct`. */
+    val otherBatteryPct: StateFlow<Int?> = combine(_ouraBatteryPct, _sourceBatteryPct) { ring, source -> ring ?: source }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Collects the live generic source's `batteryPct` into [_sourceBatteryPct]; cancelled on teardown. */
+    private var sourceBatteryJob: kotlinx.coroutines.Job? = null
 
     /** The live ring's link phase for the Live console's ring status + reconnect affordance (#2305).
      *  [OuraLiveSource.LinkPhase.DISCONNECTED] when no ring source is live. Mirrors [ouraBatteryPct]. */
@@ -418,10 +437,27 @@ class SourceCoordinator(
      * Non-WHOOP battery: no source built here (or in [makeOuraSource]) passes `onBattery` through to the
      * live state. `batteryPct` there is the WHOOP strap's charge. It survives a source switch, and it drives
      * the strap's low/full battery alerts and runtime estimate, so a Wahoo's 0x2A19 written there was read
-     * as the WHOOP's. No readout showed it as the Wahoo's own charge: `LiveConsoleReadout.batteryPercent`
-     * returns the ring's number for every non-WHOOP device. Twin of the note above Swift `makeSource`.
+     * as the WHOOP's. Instead a generic strap, machine or band has its own `batteryPct` mirrored into
+     * [sourceBatteryPct], and a ring publishes [ouraBatteryPct]. Twin of the note above Swift `makeSource`.
      */
     private fun makeSource(id: String, row: PairedDeviceRow?): LiveHrSource {
+        val source = buildSource(id, row)
+        when (source) {
+            is StandardHrSource -> mirrorSourceBattery(source.batteryPct)
+            is FtmsSource -> mirrorSourceBattery(source.batteryPct)
+            is HuamiHrSource -> mirrorSourceBattery(source.batteryPct)
+            else -> Unit   // an Oura ring mirrors its own charge in makeOuraSource
+        }
+        return source
+    }
+
+    /** Show the live generic source's own charge as [sourceBatteryPct]. Twin of Swift `mirrorSourceBattery`. */
+    private fun mirrorSourceBattery(battery: StateFlow<Int?>) {
+        sourceBatteryJob?.cancel()
+        sourceBatteryJob = scope.launch { battery.collect { _sourceBatteryPct.value = it } }
+    }
+
+    private fun buildSource(id: String, row: PairedDeviceRow?): LiveHrSource {
         // Non-null in production (set at the composition root); only the JVM-test paths that never reach a
         // strap switch leave it null. Fail loudly rather than silently no-op if that invariant breaks.
         val ctx = requireNotNull(context) { "SourceCoordinator.context is required to run a strap source" }
@@ -661,6 +697,8 @@ class SourceCoordinator(
         _ouraNeedsPairing.value = null
         _ouraWearState.value = null   // #628: no live Oura source -> no wear badge
         _ouraBatteryPct.value = null  // #2075: nor a stale ring charge
+        sourceBatteryJob?.cancel(); sourceBatteryJob = null
+        _sourceBatteryPct.value = null  // nor a torn-down generic strap's charge
         _ouraLinkPhase.value = OuraLiveSource.LinkPhase.DISCONNECTED   // #2305
         // A stale speed/cadence/power readout must not outlive the strap session (the source's own stop()
         // already pushes an empty SensorMetrics, but reset here too so leaving for WHOOP / FTMS / Huami —

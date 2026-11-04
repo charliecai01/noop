@@ -546,7 +546,7 @@ class WhoopConnectionService : Service() {
                                 activeIsWhoop = ble.activeDeviceIsWhoop,
                                 whoopPct = state.batteryPct,
                                 ringPct = (application as NoopApplication)
-                                    .sourceCoordinator.ouraBatteryPct.value,
+                                    .sourceCoordinator.otherBatteryPct.value,
                             ),
                             connected = state.connected,
                             stressSeries = stressCurve?.points ?: emptyList(),

@@ -122,7 +122,7 @@ fun DevicesScreen(
     val scope = rememberCoroutineScope()
     val live by viewModel.live.collectAsStateWithLifecycle()
     // #2075: a ring reports its OWN charge and does not funnel into live.batteryPct.
-    val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
+    val otherBatteryPct by viewModel.otherBatteryPct.collectAsStateWithLifecycle()
     // #592 extended-battery probe result — non-null (incl. the " waiting" sentinel) shows the result dialog.
     val batteryProbeResult by viewModel.extendedBatteryProbe.collectAsStateWithLifecycle()
     // #690 body-location probe result — same non-null-shows-the-dialog contract.
@@ -257,15 +257,15 @@ fun DevicesScreen(
                 // Reboot in flight + link currently down → "Reconnecting…" (#166).
                 isReconnecting = device.status == DeviceStatus.active.name && live.rebootInProgress && !live.connected,
                 // The live battery belongs to whichever device is ACTIVE + connected. A WHOOP, a generic
-                // strap and an FTMS machine all funnel into live.batteryPct, but an Oura ring does NOT: it
-                // reports its own charge, so an active ring row used to draw the strap's stale number under
-                // the ring's name (#2075). Asked PER ROW rather than of the active device, which is the
+                // strap, an FTMS machine and an Oura ring each report their own charge (otherBatteryPct);
+                // live.batteryPct is the WHOOP's alone, so an active ring row used to draw the strap's stale
+                // number under the ring's name (#2075). Asked PER ROW rather than of the active device, which is the
                 // stronger question and the one this loop can actually answer. null otherwise.
                 liveBatteryPct = if (device.status == DeviceStatus.active.name && live.connected)
                     LiveConsoleReadout.batteryPercent(
                         activeIsWhoop = SourceCoordinator.isWhoop(device),
                         whoopPct = live.batteryPct,
-                        ringPct = ouraBatteryPct,
+                        ringPct = otherBatteryPct,
                     ) else null,
                 liveBatteryMv = if (device.status == DeviceStatus.active.name && live.connected)
                     live.batteryMv else null,

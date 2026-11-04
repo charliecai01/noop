@@ -59,6 +59,9 @@ object LiveConsoleReadout {
      * A non-WHOOP active device never falls back to the WHOOP's charge. Showing nothing is the honest
      * answer when a ring has not reported yet; showing the strap's number would be a confident lie, and
      * it is the exact shape of the reported bug.
+     *
+     * [ringPct] is the active non-WHOOP device's OWN charge, whatever kind of device it is: callers pass
+     * `SourceCoordinator.otherBatteryPct`, which is the ring's or a generic strap's / machine's / band's.
      */
     fun batteryPercent(activeIsWhoop: Boolean, whoopPct: Double?, ringPct: Int?): Int? =
         // ROUNDS, and deliberately. The surfaces this replaced disagreed: Devices and the widget rounded,

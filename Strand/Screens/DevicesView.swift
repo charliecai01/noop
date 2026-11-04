@@ -195,14 +195,14 @@ private struct DevicesContent: View {
                     // Reboot in flight + link currently down → "Reconnecting…" (#166).
                     isReconnecting: device.status == .active && live.rebootInProgress && !live.connected,
                     // The live battery belongs to whichever device is ACTIVE + connected. live.batteryPct
-                    // is the WHOOP's alone (non-WHOOP sources no longer write it), and an Oura ring reports
-                    // its own charge, so an active ring row used to draw the strap's stale number under the
-                    // ring's name (#2075). Asked PER ROW rather than of the active
+                    // is the WHOOP's alone. A ring, a generic strap (Wahoo, Polar), a machine or a band
+                    // reports its own charge (activeOtherBatteryPct); an active ring row used to draw the
+                    // strap's stale number under the ring's name (#2075). Asked PER ROW rather than of the active
                     // device, which is the stronger question and the one this loop can actually answer.
                     liveBatteryPct: (device.status == .active && live.connected)
                         ? LiveConsoleReadout.batteryPercent(
                             activeIsWhoop: SourceCoordinator.isWhoop(device),
-                            whoopPct: live.batteryPct, ringPct: live.ouraBatteryPct)
+                            whoopPct: live.batteryPct, ringPct: live.activeOtherBatteryPct)
                         : nil,
                     liveBatteryMv: (device.status == .active && live.connected) ? live.batteryMv : nil,
                     livePackSocPct: (device.status == .active && live.connected
