@@ -217,8 +217,22 @@ class ConnectionReadoutTest {
         // #1823: no clock was READ on this path - the wording must not claim one.
         assertEquals("no (records dated 1970/71)", ConnectionReadout.clockLatchedLabel(null, 40_000_000L))
         assertEquals("no (waiting for the strap clock)", ConnectionReadout.clockLatchedLabel(null, null))
+        // 0 is the "range not answered" placeholder, not a 1970 record. Twin of the Swift case.
+        assertEquals("no (waiting for the strap clock)", ConnectionReadout.clockLatchedLabel(null, 0L))
         // deviceClockUnix wins when BOTH signals are present (the WHOOP4 correlation is the more direct one).
         assertEquals("yes", ConnectionReadout.clockLatchedLabel(1_782_475_600L, 40_000_000L))
+    }
+
+    /** A 5/MG's "Clock read:" line (its decoded GET_CLOCK reply) answers like a correlation, and the newest
+     *  of either kind wins. Twin of the Swift `testClockReadLineFromAFiveMGCountsAsTheDeviceClock`. */
+    @Test fun clockReadLineFromAFiveMGCountsAsTheDeviceClock() {
+        assertEquals(1_793_809_282L, ConnectionReadout.clockCorrelatedDevice(listOf(
+            "[08:21:22] Clock read: device=1793809282 wall=1793809282 (5/MG GET_CLOCK reply; readout only)",
+        )))
+        assertEquals(1_793_809_282L, ConnectionReadout.clockCorrelatedDevice(listOf(
+            "12:00:01  Clock correlated: device=100 wall=1782475200",
+            "[08:21:22] Clock read: device=1793809282 wall=1793809282 (5/MG GET_CLOCK reply; readout only)",
+        )))
     }
 
     @Test fun rtcWarningFiresOnEpochEraClockOrNewest() {

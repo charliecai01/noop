@@ -206,6 +206,16 @@ public final class FrameRouter {
                 state.append(log: "clock: \(cmd) reply byte@resultOffset=\(rhex) "
                                 + "frame=\(Self.fullFrameHex(frame))",
                              domain: .connection)
+                // A 5/MG GET_CLOCK reply carries the RTC itself (`Whoop5ClockReply`, an unvalidated
+                // candidate pinned to captured frames), so the "Clock latched" readout can report a clock
+                // that was READ rather than infer one from how records were dated. Readout only: this is
+                // a distinct line from the 4.0 "Clock correlated:" one, and nothing decodes against it.
+                // Always-on: once per connect, and the readout has nothing else to go on.
+                if family == .whoop5, cmd.hasPrefix("GET_CLOCK"),
+                   let device = Whoop5ClockReply.deviceUnix(frame: frame) {
+                    state.append(log: "Clock read: device=\(device) wall=\(Int(Date().timeIntervalSince1970)) "
+                                    + "(5/MG GET_CLOCK reply; readout only)")
+                }
             }
             if family == .whoop4, let cmd = parsed.cmdName {
                 if cmd.hasPrefix("TOGGLE_GENERIC_HR_PROFILE") {

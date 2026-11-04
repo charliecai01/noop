@@ -230,10 +230,14 @@ object ConnectionReadout {
 
     /** #987: the device-side clock value from the newest "Clock correlated: device=<d> wall=<w>" line, or
      *  null when no correlation happened this session. Parsed from the UNTAGGED log tail (correlation is
-     *  not a test-mode emitter). Twin of the Swift parser. */
+     *  not a test-mode emitter). Twin of the Swift parser.
+     *
+     *  A WHOOP 5/MG has no correlation path; it logs "Clock read: device=<d> wall=<w>" from its GET_CLOCK
+     *  reply instead ([com.noop.protocol.Whoop5ClockReply]). Both are a clock the strap reported, so the
+     *  newest of either answers. */
     fun clockCorrelatedDevice(logLines: List<String>): Long? {
         for (line in logLines.asReversed()) {
-            if (line.contains("Clock correlated:")) return longField(line, "device=")
+            if (line.contains("Clock correlated:") || line.contains("Clock read:")) return longField(line, "device=")
         }
         return null
     }
@@ -250,7 +254,11 @@ object ConnectionReadout {
         // #1823: this branch has NOT read a clock - it is reached when no correlation exists, which is
         // every 5/MG. The only evidence is how the strap DATED its records, so say that rather than
         // claiming a clock reading we never took. Twin of the Swift wording.
-        if (strapNewestUnix != null) return if (strapNewestUnix < ceiling) "no (records dated 1970/71)" else "yes"
+        // A non-positive newest is no date at all (a placeholder for "range not answered"), so it must not
+        // print "records dated 1970/71". Twin of the Swift guard; [rtcWarning] already skips it the same way.
+        if (strapNewestUnix != null && strapNewestUnix > 0) {
+            return if (strapNewestUnix < ceiling) "no (records dated 1970/71)" else "yes"
+        }
         return "no (waiting for the strap clock)"
     }
 

@@ -203,8 +203,12 @@ public enum ConnectionReadout {
     /// #987: the device-side clock value from the newest "Clock correlated: device=<d> wall=<w>" line
     /// the correlation path logs, or nil when no correlation happened this session. Parsed from the
     /// UNTAGGED log tail (correlation is not a test-mode emitter), so the caller passes the full log lines.
+    ///
+    /// A WHOOP 5/MG has no correlation path; it logs "Clock read: device=<d> wall=<w>" from its GET_CLOCK
+    /// reply instead (`Whoop5ClockReply`). Both are a clock the strap reported, so the newest of either
+    /// answers. Kotlin twin: `ConnectionReadout.clockCorrelatedDevice`.
     public static func clockCorrelatedDevice(logLines: [String]) -> Int? {
-        for line in logLines.reversed() where line.contains("Clock correlated:") {
+        for line in logLines.reversed() where line.contains("Clock correlated:") || line.contains("Clock read:") {
             return intField(line, key: "device=")
         }
         return nil
@@ -217,12 +221,10 @@ public enum ConnectionReadout {
     /// either replies.
     ///
     /// A WHOOP 5/MG's GET_CLOCK reply rides the puffin notify channel and never reaches the WHOOP4-only
-    /// correlation path that sets `deviceClockUnix` (see `BLEManager`'s connect-handshake comment) — its
-    /// records carry absolute timestamps, so it never NEEDS that correlation to decode history. Without
-    /// this fallback the row read "no (waiting for the strap clock)" forever on every 5/MG, even a fully
-    /// working one, because the one signal it checked structurally never populates for that family. The
-    /// data-range reply is an equal-weight proof the strap answered with a working clock, not a downgrade
-    /// — `rtcWarning` below already trusts it the same way.
+    /// correlation path — its records carry absolute timestamps, so it never NEEDS that correlation to
+    /// decode history. It now reaches `deviceClockUnix` through its own "Clock read:" line instead (see
+    /// `clockCorrelatedDevice`). The data-range fallback stays for a reply that does not decode: it is an
+    /// equal-weight proof the strap answered with a working clock — `rtcWarning` below trusts it the same way.
     public static func clockLatchedLabel(deviceClockUnix: Int?, strapNewestUnix: Int? = nil) -> String {
         if let d = deviceClockUnix {
             return d < ConnectionTrace.rtcEpochCeilingUnix ? "no (RTC reads 1970/71)" : "yes"
@@ -232,7 +234,11 @@ public enum ConnectionReadout {
         // correlation path - so the only evidence is how the strap DATED its banked records. Saying "RTC
         // reads 1970/71" there claimed a reading we never took, in the one readout a reporter quotes when
         // asking why nothing syncs. Report the evidence we actually have.
-        if let n = strapNewestUnix {
+        // A non-positive newest is no date at all: `LiveState.setStrapFirmwareLayout` stores 0 as the
+        // placeholder for "layout known, range not yet answered", and a 5/MG on 50.41.1.0 never answers
+        // the range. Read as a date, that 0 printed "records dated 1970/71" for a strap whose clock and
+        // records were both correct. `rtcWarning` below already skips it the same way.
+        if let n = strapNewestUnix, n > 0 {
             return n < ConnectionTrace.rtcEpochCeilingUnix ? "no (records dated 1970/71)" : "yes"
         }
         return "no (waiting for the strap clock)"

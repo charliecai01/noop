@@ -191,6 +191,18 @@ final class ConnectionReadoutTests: XCTestCase {
         XCTAssertNil(ConnectionReadout.clockCorrelatedDevice(logLines: ["connect up"]))
     }
 
+    /// A 5/MG's "Clock read:" line (its decoded GET_CLOCK reply) is a clock the strap reported, so it
+    /// answers like a correlation, and the newest of either kind wins. Twin of the Kotlin test.
+    func testClockReadLineFromAFiveMGCountsAsTheDeviceClock() {
+        XCTAssertEqual(ConnectionReadout.clockCorrelatedDevice(logLines: [
+            "[08:21:22] Clock read: device=1793809282 wall=1793809282 (5/MG GET_CLOCK reply; readout only)",
+        ]), 1_793_809_282)
+        XCTAssertEqual(ConnectionReadout.clockCorrelatedDevice(logLines: [
+            "12:00:01  Clock correlated: device=100 wall=1782475200",
+            "[08:21:22] Clock read: device=1793809282 wall=1793809282 (5/MG GET_CLOCK reply; readout only)",
+        ]), 1_793_809_282)
+    }
+
     func testClockLatchedLabel() {
         XCTAssertEqual(ConnectionReadout.clockLatchedLabel(deviceClockUnix: 1_782_475_600), "yes")
         XCTAssertEqual(ConnectionReadout.clockLatchedLabel(deviceClockUnix: 40_000_000), "no (RTC reads 1970/71)")
@@ -211,6 +223,11 @@ final class ConnectionReadoutTests: XCTestCase {
             "no (records dated 1970/71)")
         XCTAssertEqual(
             ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: nil),
+            "no (waiting for the strap clock)")
+        // 0 is the "layout known, range not answered" placeholder, not a 1970 record. Reading it as a date
+        // told a 5/MG owner with a correct clock that their records were dated 1970/71.
+        XCTAssertEqual(
+            ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: 0),
             "no (waiting for the strap clock)")
         // deviceClockUnix wins when BOTH signals are present (the WHOOP4 correlation is the more direct one).
         XCTAssertEqual(

@@ -8858,6 +8858,18 @@ class WhoopBleClient(
                         "clock: $respCmd reply result=${result ?: "none"} " +
                             "frame=${frame.joinToString("") { "%02x".format(it) }}",
                     )
+                    // A 5/MG GET_CLOCK reply carries the RTC itself (Whoop5ClockReply, an unvalidated
+                    // candidate pinned to captured frames), so the "Clock latched" readout can report a
+                    // clock that was READ. Readout only: a distinct line from the 4.0 "Clock correlated:"
+                    // one, and nothing decodes against it. Twin of the Swift FrameRouter line.
+                    if (connectedFamily == DeviceFamily.WHOOP5 && respCmd?.startsWith("GET_CLOCK") == true) {
+                        com.noop.protocol.Whoop5ClockReply.deviceUnix(frame)?.let { device ->
+                            log(
+                                "Clock read: device=$device wall=${System.currentTimeMillis() / 1000L} " +
+                                    "(5/MG GET_CLOCK reply; readout only)",
+                            )
+                        }
+                    }
                 }
                 if (connectedFamily == DeviceFamily.WHOOP4 &&
                     respCmd?.startsWith("TOGGLE_GENERIC_HR_PROFILE") == true
