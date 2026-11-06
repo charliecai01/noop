@@ -77,6 +77,13 @@ struct LiquidTodayView: View {
     /// strap whose history never offloads, where heart rate exists ONLY for the windows it was connected.
     @State private var hrSegments: [String] = []
     @State private var workouts: [WorkoutRow] = [] // newest-first
+    /// The tapped Last Workouts card. Wrapped so `.sheet(item:)` drives presentation, like classic
+    /// TodayView's and WorkoutsView's own detail targets.
+    private struct LiquidWorkoutDetailTarget: Identifiable {
+        let row: WorkoutRow
+        let id = UUID()
+    }
+    @State private var workoutDetail: LiquidWorkoutDetailTarget?
     /// #today-hosted-cards: the shared SleepModel that backs every SleepModel-derived hosted sleep card
     /// (Stages vs typical today; more to follow). Built ONCE in `load()` from the SAME inputs the Sleep tab
     /// uses (`SleepModel.build`), and only when a sleep-origin card is actually hosted — so a Today with no
@@ -485,6 +492,18 @@ struct LiquidTodayView: View {
         }
         .sheet(isPresented: $showCoachLauncher) {
             CoachLauncherSheet()
+        }
+        // Rides its own NavigationStack for the Done toolbar item, mirroring WorkoutsView's detail sheet.
+        .sheet(item: $workoutDetail) { target in
+            NavigationStack {
+                WorkoutDetailView(row: target.row)
+                    .environmentObject(repo)
+            }
+            #if os(iOS)
+            .noopSheetPresentation(largeFirst: true)
+            #else
+            .frame(width: 620, height: 720)
+            #endif
         }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -1542,8 +1561,12 @@ struct LiquidTodayView: View {
         VStack(spacing: 8) {
             sectionHead("LAST WORKOUTS", trailing: "\(workouts.count) total")
             if let w = workouts.first {
-                NavigationLink(value: TabRoute.workouts) { workoutCard(w) }
+                // Opens THIS session's read-only detail, the same sheet the classic Today feed and the
+                // Workouts list present (#1694). The old link pushed the whole Workouts list, so the
+                // card for one ride landed on every ride. Android's Today feed already opens the detail.
+                Button { workoutDetail = LiquidWorkoutDetailTarget(row: w) } label: { workoutCard(w) }
                     .buttonStyle(LiquidPressStyle())
+                    .accessibilityHint(Text("Shows this workout"))
             } else {
                 card {
                     Text("No workouts yet")
