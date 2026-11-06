@@ -650,10 +650,12 @@ internal fun hoursMinutes(minutes: Double): String {
  * word, so the coupled strain card computes it for the overline.
  */
 internal fun strainBandWord(fraction: Double): String = when {
-    fraction < 6.0 / 21 -> "LIGHT"
-    fraction < 10.0 / 21 -> "MODERATE"
-    fraction < 14.0 / 21 -> "STRENUOUS"
-    fraction < 18.0 / 21 -> "HIGH"
+    // WHOOP's 6 / 10 / 14 / 18 converted through load onto the square-root axis, as Swift
+    // StrainGauge.bandEdges: the same session earns the same word it did on the log axis.
+    fraction < 0.0985 -> "LIGHT"
+    fraction < 0.2375 -> "MODERATE"
+    fraction < 0.5567 -> "STRENUOUS"
+    fraction < 1.0 -> "HIGH"
     else -> "ALL-OUT"
 }
 
@@ -688,9 +690,10 @@ private fun bedWakeSpan(sleeps: List<SleepSession>, habitualMidsleepSec: Long?, 
 // The classic coupled read suggests a Day-Strain target BAND from today's recovery: a green day earns a
 // higher optimal band, a red day a lower one. PRESENTATION ONLY, never fed back into any score. These are
 // the APPROVED bands and MUST stay byte-identical to the Swift CoupledView.optimalStrainRange:
-//   recovery >= 67 (green)        -> 14-18 of 21
-//   34 <= recovery <= 66 (yellow) -> 10-14
-//   recovery < 34 (red)           -> 4-10
+//   recovery >= 67 (green)        -> 12-21 of 21
+//   34 <= recovery <= 66 (yellow) -> 5-12
+//   recovery < 34 (red)           -> 1-5
+// WHOOP's 14-18 / 10-14 / 4-10 converted through load (EffortCurve) onto the 0-21 dial (x 0.21). Swift twin.
 // null recovery (calibrating / unscored day) -> null, the caller renders the no-data token, never a
 // guessed band.
 
@@ -700,9 +703,9 @@ internal data class OptimalStrainRange(val low: Int, val high: Int)
 internal fun optimalStrainRange(recovery: Double?): OptimalStrainRange? {
     val r = recovery ?: return null
     return when {
-        r >= 67 -> OptimalStrainRange(14, 18)
-        r >= 34 -> OptimalStrainRange(10, 14)
-        else -> OptimalStrainRange(4, 10)
+        r >= 67 -> OptimalStrainRange(12, 21)
+        r >= 34 -> OptimalStrainRange(5, 12)
+        else -> OptimalStrainRange(1, 5)
     }
 }
 

@@ -85,6 +85,7 @@ class ReadinessTrainingLoadTest {
 
         assertEquals("2026-01-20", paired.trainingLoad.endDay)
         assertEquals(20, paired.trainingLoad.contiguousDays)
-        assertEquals(10.0, paired.trainingLoad.points.last().load, 0.0)
+        // Effort 10 is a load of 12 TRIMP (1200 × 0.1²); CTL/ATL run on load. Swift twin.
+        assertEquals(12.0, paired.trainingLoad.points.last().load, 1e-9)
     }
 }

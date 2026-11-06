@@ -60,12 +60,19 @@ public struct StrainGauge: View {
 
     /// A short load word for the strain value, mirroring the recovery state idea. Computed off the
     /// fraction (not the raw value) so the bands read the same on the 0–100 and 0–21 display scales.
+    ///
+    /// The edges are WHOOP's 6 / 10 / 14 / 18 of 21, converted through the load they stand for onto the
+    /// square-root Effort axis (`EffortCurve.effortFromWhoopStrain` = 9.85, 23.75, 55.67, 100), so a
+    /// given session earns the same word it did on the log axis. Literals because StrandDesign cannot
+    /// import WhoopStore; `StrainGaugeBandTests` pins them against the curve.
+    public static let bandEdges: [Double] = [0.0985, 0.2375, 0.5567, 1.0]
+
     public static func stateLabel(forFraction fraction: Double) -> String {
         switch min(max(fraction, 0), 1) {
-        case ..<(6.0 / 21):   return String(localized: "LIGHT", bundle: .module)
-        case ..<(10.0 / 21):  return String(localized: "MODERATE", bundle: .module)
-        case ..<(14.0 / 21):  return String(localized: "STRENUOUS", bundle: .module)
-        case ..<(18.0 / 21):  return String(localized: "HIGH", bundle: .module)
+        case ..<bandEdges[0]: return String(localized: "LIGHT", bundle: .module)
+        case ..<bandEdges[1]: return String(localized: "MODERATE", bundle: .module)
+        case ..<bandEdges[2]: return String(localized: "STRENUOUS", bundle: .module)
+        case ..<bandEdges[3]: return String(localized: "HIGH", bundle: .module)
         default:              return String(localized: "ALL-OUT", bundle: .module)
         }
     }

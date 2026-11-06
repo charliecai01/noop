@@ -710,7 +710,7 @@ private fun EffortHero(
     groups: List<SportGroup>,
 ) {
     val effortScale = UnitPrefs.effortScale(LocalContext.current)
-    val strains = rows.mapNotNull { it.workoutEffort }
+    val strains = rows.mapNotNull { it.strain }
     val hasEffort = strains.isNotEmpty()
     val avgStrain = if (strains.isEmpty()) 0.0 else strains.sum() / strains.size
     // Fill fraction on the stored 0–100 Effort axis — scale-independent, so the vessel fills the same on
@@ -1540,7 +1540,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
             // strain - an imported session with none simply omits the card. The display honours the Effort
             // scale toggle (#268), so a WHOOP-axis user sees the rescaled 0–21 value; the stored value is
             // unchanged. Presentation only - no new data is computed here.
-            row.workoutEffort?.let { strain ->
+            row.strain?.let { strain ->
                 val effortScale = UnitPrefs.effortScale(LocalContext.current)
                 CardDivider()
                 SessionEffortCard(strain = strain, effortScale = effortScale)

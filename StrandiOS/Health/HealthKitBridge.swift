@@ -1689,6 +1689,8 @@ final class HealthKitBridge: ObservableObject {
             let appleSamples = await Self.fetchWorkoutHeartRate(for: workout, store: store)
             workoutHr += appleSamples
             let steps = await Self.fetchWorkoutSteps(for: workout, store: store)
+            // The day's measured resting HR, the same reserve the day's own Effort is scored against.
+            let restingHR = repo.workoutRestingHR(startTs: startTs)
             // Prefer a chest strap NOOP recorded itself over this exact window (a Wahoo or Polar on the
             // bike, stored at 1 Hz), then the HR stream HealthKit associates with this workout (for
             // example, Apple Watch, or the strap's beats as its companion app thinned them), and only
@@ -1708,7 +1710,7 @@ final class HealthKitBridge: ObservableObject {
                     // the 20 000 the WHOOP read below allows.
                     let strapSamples = await repo.hrSamples(deviceIds: [id], from: startTs, to: endTs,
                                                             limit: 50_000)
-                    if let strapEffort = Self.scoredEffort(strapSamples, profile: profile) {
+                    if let strapEffort = Self.scoredEffort(strapSamples, profile: profile, restingHR: restingHR) {
                         effort = strapEffort
                         samples = strapSamples
                     }
@@ -1716,7 +1718,7 @@ final class HealthKitBridge: ObservableObject {
             }
             if effort == nil {
                 samples = appleSamples
-                effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0) }
+                effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0, restingHR: restingHR) }
             }
             if effort == nil, let profile {
                 let hrDeviceIds = Repository.workoutHrDeviceIds(
@@ -1726,7 +1728,7 @@ final class HealthKitBridge: ObservableObject {
                 let strapSamples = await repo.hrSamples(deviceIds: hrDeviceIds,
                                                         from: startTs, to: endTs,
                                                         limit: 20_000)
-                if let strapEffort = Self.scoredEffort(strapSamples, profile: profile) {
+                if let strapEffort = Self.scoredEffort(strapSamples, profile: profile, restingHR: restingHR) {
                     effort = strapEffort
                     samples = strapSamples
                 }
@@ -1775,11 +1777,12 @@ final class HealthKitBridge: ObservableObject {
     /// session. Used first for HealthKit-associated HR and then for the WHOOP fallback; source samples
     /// are intentionally never combined.
     private static func scoredEffort(_ samples: [HRSample],
-                                     profile: Repository.StrainProfile) -> Double? {
+                                     profile: Repository.StrainProfile,
+                                     restingHR: Double) -> Double? {
         guard let first = samples.first, let last = samples.last,
               samples.count >= effortMinimumSamples,
               last.ts - first.ts >= effortMinimumSpanSeconds else { return nil }
-        return StrainScorer.strain(samples, maxHR: profile.hrMax,
+        return StrainScorer.strain(samples, maxHR: profile.hrMax, restingHR: restingHR,
                                    method: PuffinExperiment.effortMethod,
                                    sex: profile.sex)
     }

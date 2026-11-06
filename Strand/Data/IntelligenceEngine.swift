@@ -620,7 +620,9 @@ final class IntelligenceEngine: ObservableObject {
         computedId: String, satKey: String,
     ) -> [MetricPoint] {
         let rhrs = gateDays.compactMap { $0.restingHr }.map(Double.init)
-        let strains = gateDays.compactMap { $0.strain }.filter { $0 >= 30 }
+        // The HUNT activity index was calibrated on the log Effort axis (active day ≥ 30, mean 30/60/90 →
+        // 1/2/3), so the days are read there: the same loads earn the same index after the v49 axis change.
+        let strains = gateDays.compactMap { $0.strain.map(EffortCurve.legacyFromEffort) }.filter { $0 >= 30 }
         let meanStrain = strains.isEmpty ? 0 : strains.reduce(0, +) / Double(strains.count)
         let waist: Double? = waistCm > 0 ? waistCm : nil
         let ready = FitnessAgeEngine.assessReadiness(

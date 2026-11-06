@@ -29,7 +29,11 @@ public extension ReadinessEngine {
         trainingLoadConfiguration: TrainingLoadEngine.Configuration = .standard
     ) -> TrainingLoadAnalysis {
         let readiness = evaluate(days: days, today: today)
-        let trainingDays = days.map { TrainingLoadEngine.DailyLoad(day: $0.day, load: $0.strain) }
+        // CTL / ATL are Banister's fitness-fatigue model, defined on daily TRIMP, so the load is the
+        // TRIMP each day's Effort stands for rather than the 0–100 score itself.
+        let trainingDays = days.map {
+            TrainingLoadEngine.DailyLoad(day: $0.day, load: $0.strain.map { EffortCurve.trimpFromEffort($0) })
+        }
         let trainingLoad = TrainingLoadEngine.evaluate(
             days: trainingDays,
             through: today,

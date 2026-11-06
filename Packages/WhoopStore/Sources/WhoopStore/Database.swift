@@ -1153,6 +1153,36 @@ extension WhoopStore {
                 t.primaryKey(["deviceId", "ts", "sequence"])
             }
         }
+        // v49: Effort moves from the log axis 100 × ln(TRIMP+1) / ln(7201) to the square-root axis
+        // 100 × √(TRIMP / 1200) (`EffortCurve`). Data only, no schema change. Every stored Effort is
+        // converted through the TRIMP it stands for, so the same load reads the same on both: the daily
+        // `strain`, each workout's `strain`, and the imported WHOOP `strain` series. Exact for anything
+        // scored by Edwards, which is every stored value unless the Banister experiment was on, in which
+        // case the conversion is approximate but still monotone. Values above ≈ 79.8 (more than four hours
+        // in zone 5) land on the new ceiling of 100. A restored pre-v49 backup carries its own
+        // `grdb_migrations` and is converted on open. Twin of Room MIGRATION_42_43.
+        migrator.registerMigration("v49-effort-sqrt-axis") { db in
+            try WhoopStore.convertStoredEffortToSqrtAxis(db)
+        }
         return migrator
+    }
+
+    /// The v49 conversion, outside the migrator closure so a test can run it against seeded rows.
+    /// Row by row in Swift rather than one UPDATE: SQLite's math functions are a compile option this
+    /// build does not rely on, and the conversion must be byte-identical to `EffortCurve`.
+    /// Kotlin twin: `WhoopDatabase.convertStoredEffortToSqrtAxis`.
+    static func convertStoredEffortToSqrtAxis(_ db: Database) throws {
+        for (table, column, filter) in [("dailyMetric", "strain", ""),
+                                        ("workout", "strain", ""),
+                                        ("metricSeries", "value", " AND key = 'strain'")] {
+            let rows = try Row.fetchAll(db, sql:
+                "SELECT rowid, \(column) FROM \(table) WHERE \(column) IS NOT NULL\(filter)")
+            for row in rows {
+                let id: Int64 = row[0]
+                let legacy: Double = row[1]
+                try db.execute(sql: "UPDATE \(table) SET \(column) = ? WHERE rowid = ?",
+                               arguments: [EffortCurve.effortFromLegacy(legacy), id])
+            }
+        }
     }
 }

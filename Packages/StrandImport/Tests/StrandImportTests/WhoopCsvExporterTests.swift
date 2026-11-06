@@ -28,9 +28,10 @@ final class WhoopCsvExporterTests: XCTestCase {
         XCTAssertEqual(r.hrvMs, 68.4)
         XCTAssertEqual(r.skinTempCelsius, 33.1)
         XCTAssertEqual(r.bloodOxygenPct, 96.0)
-        // The CSV "Day Strain" column is WHOOP's 0–21 scale, so our 0–100 Effort (12.5) is written
-        // down-converted (12.5 ÷ (100/21) = 2.625). Re-import scales it back up at the store boundary.
-        XCTAssertEqual(try XCTUnwrap(r.dayStrain), 2.625, accuracy: 1e-6)
+        // The CSV "Day Strain" column is WHOOP's 0–21 log scale, so our 0–100 Effort (12.5) is written
+        // through the load it stands for (EffortCurve.whoopStrain → 7.05). Re-import converts it back.
+        XCTAssertEqual(try XCTUnwrap(r.dayStrain), 7.05, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(WhoopExportImporter.effortFromImportedDayStrain(r.dayStrain)), 12.5, accuracy: 0.05)
         XCTAssertEqual(r.energyKcal, 2450)
         XCTAssertEqual(r.sleepPerformancePct, 85)
         XCTAssertEqual(r.respiratoryRate, 14.2)
@@ -60,9 +61,9 @@ final class WhoopCsvExporterTests: XCTestCase {
         let back = WhoopExportImporter().parseWorkouts(CSVTable(text: csv))
         XCTAssertEqual(back.count, 1)
         XCTAssertEqual(back[0].activityName, "Run, \"tempo\"\nintervals")
-        // Workout strain is also written on WHOOP's 0–21 scale (11.2 ÷ (100/21) = 2.352); re-import
-        // scales back up at the store boundary.
-        XCTAssertEqual(try XCTUnwrap(back[0].activityStrain), 2.352, accuracy: 1e-6)
+        // Workout strain is also written on WHOOP's 0–21 scale through its load (11.2 → 6.56); re-import
+        // converts it back at the store boundary.
+        XCTAssertEqual(try XCTUnwrap(back[0].activityStrain), 6.56, accuracy: 1e-6)
         XCTAssertEqual(back[0].energyKcal, 540)
         XCTAssertEqual(back[0].avgHeartRate, 158)
         XCTAssertEqual(back[0].maxHeartRate, 182)

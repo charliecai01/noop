@@ -89,7 +89,7 @@ struct WorkoutDetailView: View {
             hrCurveCard
             zonesCard
             heartRateRecoveryCard
-            if let strain = row.workoutEffort {
+            if let strain = row.strain {
                 effortCard(strain: strain)
             }
         }

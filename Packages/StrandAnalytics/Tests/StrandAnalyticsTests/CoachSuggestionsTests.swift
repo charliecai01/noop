@@ -118,7 +118,8 @@ final class CoachSuggestionsTests: XCTestCase {
     }
 
     func testStrainBelowMappedWhoop14DoesNotAddLoadedChip() {
-        let today = metric(day: 10, recovery: 70, strain: 60)
+        // Just under WHOOP 14 mapped through its load (55.67).
+        let today = metric(day: 10, recovery: 70, strain: 55)
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
         XCTAssertFalse(chips.contains("Have I done enough today, or push more?"))
     }

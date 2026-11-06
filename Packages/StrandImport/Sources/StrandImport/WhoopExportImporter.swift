@@ -1,4 +1,5 @@
 import Foundation
+import WhoopStore
 import ZIPFoundation
 
 /// Parses a Whoop data export (CSV bundle) into normalized Swift models.
@@ -32,18 +33,23 @@ public struct WhoopExportImporter {
     /// Keep this factor byte-identical to the Android importer (WhoopCsvImporter.kt).
     public static let dayStrainToEffortScale = 100.0 / 21.0
 
-    /// Rescale an imported WHOOP Day Strain (0–21) onto NOOP's 0–100 Effort axis. `nil` passes through.
+    /// Convert an imported WHOOP Day Strain (0–21) onto NOOP's 0–100 Effort axis. `nil` passes through.
+    ///
+    /// Since v49 the Effort axis is square-root in load and WHOOP's is logarithmic, so a proportional
+    /// rescale no longer lands on the same load. The strain is read as the log axis (× 100/21, the factor
+    /// above) and converted through the TRIMP it stands for (`EffortCurve.effortFromWhoopStrain`).
     public static func effortFromImportedDayStrain(_ dayStrain: Double?) -> Double? {
         guard let dayStrain else { return nil }
-        return dayStrain * dayStrainToEffortScale
+        return EffortCurve.effortFromLegacy(dayStrain * dayStrainToEffortScale)
     }
 
     /// Inverse: convert NOOP's internal 0–100 Effort back onto WHOOP's 0–21 Day Strain scale for a
-    /// WHOOP-format CSV export. Keeps the CSV genuinely WHOOP-compatible AND makes a NOOP export →
-    /// NOOP import round-trip lossless (export ÷scale, then import ×scale restores the value).
+    /// WHOOP-format CSV export (`EffortCurve.whoopStrainFromEffort`), so the CSV carries a
+    /// WHOOP-comparable number and a NOOP export → import round-trip restores the value to within the
+    /// 2 dp both directions round to.
     public static func whoopDayStrainFromEffort(_ effort: Double?) -> Double? {
         guard let effort else { return nil }
-        return effort / dayStrainToEffortScale
+        return EffortCurve.whoopStrainFromEffort(effort)
     }
 
     /// WHOOP CSVs carry "Sleep efficiency %" on a 0–100 scale; NOOP's `efficiency` columns store the

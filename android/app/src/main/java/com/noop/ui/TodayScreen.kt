@@ -7349,7 +7349,7 @@ private fun TodayWorkoutsSection(workouts: List<WorkoutRow>, onSelect: (WorkoutR
                 label = WorkoutEditing.displaySport(workout.sport),
                 value = localizedMetricValue(workoutDuration(workout)),
                 caption = workoutCaption(workout),
-                accent = workout.workoutEffort?.let { Palette.effortTint(it / StrainScorer.maxStrain) } ?: Palette.textPrimary,
+                accent = workout.strain?.let { Palette.effortTint(it / StrainScorer.maxStrain) } ?: Palette.textPrimary,
                 delta = workout.energyKcal?.let { "${it.roundToInt()} kcal" },
                 deltaColor = Palette.metricAmber,
             )

@@ -12,8 +12,8 @@ import WhoopStore
 // fitness proxy) and acute load (ATL, the 7-day fatigue proxy); the gap between the two lines IS the
 // TSB / "form" (CTL − ATL), surfaced as the headline number and a footer stat.
 //
-// Descriptive only: CTL/ATL/TSB never feed the Readiness level or any score, and the loads are NOOP's
-// daily Effort/strain — NOT TRIMP. Long-horizon by nature, so the card models the full history rather
+// Descriptive only: CTL/ATL/TSB never feed the Readiness level or any score. The loads are the daily
+// TRIMP each day's Effort stands for (`EffortCurve.trimp`), the quantity the model is defined on. Long-horizon by nature, so the card models the full history rather
 // than the Trends range window (14+ contiguous days are needed before anything is drawn).
 //
 // Isolated in its own file on purpose: TrendsView already sits near the iOS type-check budget, so this

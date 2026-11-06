@@ -218125,6 +218125,64 @@
         }
       }
     },
+    "The same cardiovascular-load idea as WHOOP’s Day Strain (0–21), on a different curve. WHOOP’s scale is logarithmic, which squeezes hard days together; this one is a square root, so a day with more load reads clearly higher." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieselbe Idee der kardiovaskulären Belastung wie WHOOPs Day Strain (0–21), aber auf einer anderen Kurve. WHOOPs Skala ist logarithmisch und drückt harte Tage zusammen; diese ist eine Quadratwurzel, sodass ein Tag mit mehr Belastung deutlich höher ausfällt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La misma idea de carga cardiovascular que el Day Strain de WHOOP (0–21), con otra curva. La escala de WHOOP es logarítmica y comprime los días duros; esta es una raíz cuadrada, así que un día con más carga se lee claramente más alto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La même idée de charge cardiovasculaire que le Day Strain de WHOOP (0–21), sur une autre courbe. L’échelle de WHOOP est logarithmique et tasse les journées difficiles ; celle-ci est une racine carrée, donc une journée plus chargée ressort nettement plus haut."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La stessa idea di carico cardiovascolare del Day Strain di WHOOP (0–21), su una curva diversa. La scala di WHOOP è logaritmica e comprime le giornate dure; questa è una radice quadrata, quindi una giornata con più carico risulta chiaramente più alta."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta sama idea obciążenia sercowo-naczyniowego co Day Strain WHOOP (0–21), ale na innej krzywej. Skala WHOOP jest logarytmiczna i ściska ciężkie dni; ta jest pierwiastkiem kwadratowym, więc dzień z większym obciążeniem wypada wyraźnie wyżej."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A mesma ideia de carga cardiovascular do Day Strain da WHOOP (0–21), numa curva diferente. A escala da WHOOP é logarítmica e comprime os dias duros; esta é uma raiz quadrada, por isso um dia com mais carga fica claramente mais alto."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Та же идея сердечно-сосудистой нагрузки, что и Day Strain у WHOOP (0–21), но на другой кривой. Шкала WHOOP логарифмическая и сжимает тяжёлые дни; эта — квадратный корень, поэтому день с большей нагрузкой заметно выше."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与 WHOOP 的 Day Strain（0–21）同样衡量心血管负荷，但曲线不同。WHOOP 的刻度是对数的，会把高强度的日子挤在一起；这里使用平方根，因此负荷更大的日子明显更高。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與 WHOOP 的 Day Strain（0–21）同樣衡量心血管負荷，但曲線不同。WHOOP 的刻度是對數的，會把高強度的日子擠在一起；這裡使用平方根，因此負荷更大的日子明顯更高。"
+          }
+        }
+      }
+    },
     "The scatter looked rounder and more spread out than a tight, steady beat. This has many ordinary causes and is not a diagnosis." : {
       "localizations" : {
         "de" : {
@@ -247768,6 +247826,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的身體似乎承受著較大壓力。升高的訊號：%@。未記錄飲酒或旅行，因此請考慮放鬆一些。裝置端估算，不是診斷。"
+          }
+        }
+      }
+    },
+    "Your cardiovascular load. Heart rate is turned into a training impulse using heart-rate-reserve zones, with time in harder zones weighted more heavily. The 0–100 scale is the square root of that load, so four times the work reads as twice the number: an easy hour lands around 20–30, a hard four-hour ride near 70, and 100 is about four hours flat out. Steps and active energy provide a floor for long, low-cardio activity." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine kardiovaskuläre Belastung. Die Herzfrequenz wird über Herzfrequenzreserve-Zonen in einen Trainingsimpuls umgerechnet, wobei Zeit in härteren Zonen stärker gewichtet wird. Die Skala von 0–100 ist die Quadratwurzel dieser Belastung, sodass die vierfache Arbeit als doppelte Zahl erscheint: Eine lockere Stunde landet bei etwa 20–30, eine harte vierstündige Fahrt bei rund 70, und 100 entspricht etwa vier Stunden am Limit. Schritte und aktive Energie bilden eine Untergrenze für lange Aktivitäten mit wenig Herz-Kreislauf-Belastung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu carga cardiovascular. La frecuencia cardíaca se convierte en un impulso de entrenamiento mediante zonas de reserva de frecuencia cardíaca, y el tiempo en zonas más duras pesa más. La escala de 0–100 es la raíz cuadrada de esa carga, así que cuatro veces el trabajo se lee como el doble: una hora suave queda en torno a 20–30, una salida dura de cuatro horas cerca de 70, y 100 equivale a unas cuatro horas a tope. Los pasos y la energía activa aportan un mínimo para actividades largas con poca carga cardiovascular."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta charge cardiovasculaire. La fréquence cardiaque est convertie en impulsion d’entraînement à l’aide de zones de réserve cardiaque, le temps passé dans les zones les plus dures comptant davantage. L’échelle de 0–100 est la racine carrée de cette charge : quatre fois plus de travail se lit comme un chiffre deux fois plus grand. Une heure facile se situe vers 20–30, une sortie difficile de quatre heures vers 70, et 100 correspond à environ quatre heures à fond. Les pas et l’énergie active fournissent un plancher pour les longues activités peu cardio."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo carico cardiovascolare. La frequenza cardiaca viene convertita in un impulso di allenamento tramite zone di riserva cardiaca, e il tempo nelle zone più dure pesa di più. La scala 0–100 è la radice quadrata di quel carico, quindi quattro volte il lavoro si legge come il doppio: un’ora facile si colloca intorno a 20–30, un’uscita dura di quattro ore vicino a 70, e 100 equivale a circa quattro ore al massimo. Passi ed energia attiva forniscono una soglia minima per attività lunghe e poco cardio."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoje obciążenie sercowo-naczyniowe. Tętno jest przeliczane na impuls treningowy na podstawie stref rezerwy tętna, a czas w trudniejszych strefach waży więcej. Skala 0–100 to pierwiastek kwadratowy z tego obciążenia, więc czterokrotnie większa praca daje dwukrotnie większą liczbę: spokojna godzina to około 20–30, ciężka czterogodzinna jazda blisko 70, a 100 to mniej więcej cztery godziny na maksa. Kroki i aktywna energia zapewniają minimum dla długich aktywności o niskim obciążeniu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tua carga cardiovascular. A frequência cardíaca é convertida num impulso de treino através de zonas de reserva cardíaca, e o tempo nas zonas mais duras pesa mais. A escala de 0–100 é a raiz quadrada dessa carga, por isso quatro vezes o trabalho lê-se como o dobro: uma hora leve fica perto de 20–30, um treino duro de quatro horas perto de 70, e 100 equivale a cerca de quatro horas no máximo. Os passos e a energia ativa dão um mínimo para atividades longas com pouca carga cardiovascular."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваша сердечно-сосудистая нагрузка. Пульс переводится в тренировочный импульс по зонам резерва пульса, причём время в более тяжёлых зонах весит больше. Шкала 0–100 — это квадратный корень из этой нагрузки, поэтому вчетверо большая работа даёт вдвое большее число: лёгкий час — около 20–30, тяжёлая четырёхчасовая поездка — около 70, а 100 — это примерно четыре часа на пределе. Шаги и активная энергия задают минимум для долгой активности с малой кардионагрузкой."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的心血管负荷。心率会按心率储备区间换算成训练冲量，处于更高区间的时间权重更大。0–100 分是该负荷的平方根，因此四倍的训练量显示为两倍的分数：轻松一小时约为 20–30，艰苦的四小时骑行接近 70，100 约等于全力四小时。步数和活动能量为长时间、低心肺负荷的活动提供下限。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的心血管負荷。心率會依心率儲備區間換算成訓練衝量，處於更高區間的時間權重更大。0–100 分是該負荷的平方根，因此四倍的訓練量顯示為兩倍的分數：輕鬆一小時約為 20–30，艱苦的四小時騎乘接近 70，100 約等於全力四小時。步數和活動能量為長時間、低心肺負荷的活動提供下限。"
           }
         }
       }

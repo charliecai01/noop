@@ -1,6 +1,7 @@
 import XCTest
 import Foundation
 @testable import StrandAnalytics
+import WhoopStore
 import WhoopProtocol
 
 /// #1545: Banister TRIMP needs its OWN log-map denominator, and the reason is easy to get wrong.
@@ -98,25 +99,18 @@ final class StrainBanisterDenominatorTests: XCTestCase {
 
     // MARK: - Why reusing Edwards' denominator would be wrong
 
-    /// The bug this guards against. With 7201 a maximum Banister day lands well short of 100 — nobody
-    /// would ever see the top of the scale, and the shortfall differs by sex, so the two would not even
-    /// be wrong in the same way.
-    func testEdwardsDenominatorWouldCapBanisterBelowFull() {
-        // REPINNED from a 90-to-99 band to the exact figures (#2835). The band was chosen when a woman's
-        // ceiling was 4,896 and scored 95.66 through 7201; with the published 0.86 it is 6,579 and scores
-        // 98.98, which still satisfies `< 99.0` by two hundredths. A bound that survives by a sixtieth of a point
-        // is not testing anything, and the next coefficient change would have broken it without any
-        // statement of what the right answer is. Exact values also make THIS test catch a wrong
-        // coefficient: the old pairing scored 95.66 here, three points away. Pinned exactly rather
-        // than with a tolerance because `trimpToStrain` rounds to two decimals, so these ARE the outputs.
-        let expected = ["male": 98.47, "female": 98.98]
-        for (sex, want) in expected {
-            let c = StrainScorer.banisterCoefficients(sexF: sex == "female")
-            let wrong = StrainScorer.trimpToStrain(StrainScorer.banisterDailyCeiling(c),
-                                                   denominator: StrainScorer.strainDenominator)
-            XCTAssertEqual(wrong, want, accuracy: 1e-9,
-                           "\(sex): reusing 7201 caps a maximum Banister day here")
-            XCTAssertLessThan(wrong, 100.0, "\(sex): nobody would ever see the top of the scale")
+    /// The bug this guards against, restated for the square-root axis (v49). Each method's 100 is four
+    /// of ITS OWN twenty-four ceiling hours, so a Banister load a quarter of the way to its session
+    /// ceiling scores exactly 50 through its own denominator. Through Edwards' 7201 the same load lands
+    /// elsewhere, by a different amount for each sex, so the two methods would not share an axis.
+    func testEdwardsDenominatorWouldMisplaceBanister() {
+        for sex in ["male", "female"] {
+            let right = StrainScorer.logMapDenominator(method: .banister, sex: sex)
+            let quarter = EffortCurve.ceilingTrimp(denominator: right) / 4
+            XCTAssertEqual(StrainScorer.trimpToStrain(quarter, denominator: right), 50.0, accuracy: 1e-9,
+                           "\(sex): a quarter of the session ceiling is half the axis")
+            let wrong = StrainScorer.trimpToStrain(quarter, denominator: StrainScorer.strainDenominator)
+            XCTAssertNotEqual(wrong, 50.0, "\(sex): reusing 7201 moves the same Banister load")
         }
     }
 
@@ -186,6 +180,6 @@ final class StrainBanisterDenominatorTests: XCTestCase {
 
         XCTAssertEqual(edwards, 0.0, "an hour below the floor earns nothing under Edwards, by design")
         XCTAssertNotNil(banister)
-        XCTAssertGreaterThan(banister!, 40.0, "Banister credits the same hour on the 0–100 axis")
+        XCTAssertGreaterThan(banister!, EffortCurve.effortFromLegacy(40.0), "Banister credits the same hour on the 0–100 axis")
     }
 }

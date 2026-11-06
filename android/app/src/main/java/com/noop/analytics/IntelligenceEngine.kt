@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import java.util.Locale
 import com.noop.data.DailyMetric
 import com.noop.data.DeviceBrandCatalog
@@ -2718,7 +2719,8 @@ object IntelligenceEngine {
         gateDays: List<DailyMetric>, profile: UserProfile, computedId: String, satKey: String,
     ): List<MetricSeriesRow> {
         val rhrs = gateDays.mapNotNull { it.restingHr }.map { it.toDouble() }
-        val strains = gateDays.mapNotNull { it.strain }.filter { it >= 30.0 }
+        // The HUNT activity index was calibrated on the log Effort axis, so the days are read there. Swift twin.
+        val strains = gateDays.mapNotNull { d -> d.strain?.let { EffortCurve.legacyFromEffort(it) } }.filter { it >= 30.0 }
         val meanStrain = if (strains.isEmpty()) 0.0 else strains.average()
         val waist = if (profile.waistCm > 0) profile.waistCm else null
         val ready = FitnessAgeEngine.assessReadiness(

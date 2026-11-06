@@ -129,7 +129,8 @@ class CoachSuggestionsTest {
     }
 
     @Test fun strainBelowMappedWhoop14DoesNotAddLoadedChip() {
-        val today = metric(day = 10, recovery = 70.0, strain = 60.0)
+        // Just under WHOOP 14 mapped through its load (55.67). Swift twin.
+        val today = metric(day = 10, recovery = 70.0, strain = 55.0)
         val chips = CoachSuggestions.suggestions(today, emptyList())
         assertFalse(chips.contains("Have I done enough today, or push more?"))
     }

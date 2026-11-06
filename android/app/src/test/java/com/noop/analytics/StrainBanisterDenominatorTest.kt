@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -125,25 +126,20 @@ class StrainBanisterDenominatorTest {
     // ── Why reusing Edwards' denominator would be wrong ─────────────────────────────────────────
 
     /**
-     * The bug this guards against. With 7201 a maximum Banister day lands well short of 100 — nobody
-     * would ever see the top of the scale, and the shortfall differs by sex, so the two would not even be
-     * wrong in the same way.
+     * The bug this guards against, restated for the square-root axis. Each method's 100 is four of ITS
+     * OWN twenty-four ceiling hours, so a Banister load a quarter of the way to its session ceiling scores
+     * exactly 50 through its own denominator; through Edwards' 7201 the same load lands elsewhere.
+     * Swift twin: testEdwardsDenominatorWouldMisplaceBanister.
      */
     @Test
-    fun edwardsDenominatorWouldCapBanisterBelowFull() {
-        // REPINNED from a 90-to-99 band to the exact figures (#2835). The band was chosen when a woman's
-        // ceiling was 4,896 and scored 95.66 through 7201; with the published 0.86 it is 6,579 and scores
-        // 98.98, which still satisfies `< 99.0` by two hundredths. A bound that survives by a sixtieth of a point
-        // is not testing anything, and the next coefficient change would have broken it without any
-        // statement of what the right answer is. Exact values also make THIS test catch a wrong
-        // coefficient: the old pairing scored 95.66 here, three points away. Pinned exactly rather
-        // than with a tolerance because `trimpToStrain` rounds to two decimals, so these ARE the outputs.
-        for ((sex, want) in listOf("male" to 98.47, "female" to 98.98)) {
-            val c = StrainScorer.banisterCoefficients(sex == "female")
-            val wrong = StrainScorer.trimpToStrain(
-                StrainScorer.banisterDailyCeiling(c), StrainScorer.strainDenominator)
-            assertEquals("$sex: reusing 7201 caps a maximum Banister day here", want, wrong, 1e-9)
-            assertTrue("$sex: nobody would ever see the top of the scale ($wrong)", wrong < 100.0)
+    fun edwardsDenominatorWouldMisplaceBanister() {
+        for (sex in listOf("male", "female")) {
+            val right = StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, sex)
+            val quarter = EffortCurve.ceilingTrimp(right) / 4
+            assertEquals("$sex: a quarter of the session ceiling is half the axis",
+                50.0, StrainScorer.trimpToStrain(quarter, right), 1e-9)
+            val wrong = StrainScorer.trimpToStrain(quarter, StrainScorer.strainDenominator)
+            assertTrue("$sex: reusing 7201 moves the same Banister load ($wrong)", wrong != 50.0)
         }
     }
 
@@ -211,6 +207,6 @@ class StrainBanisterDenominatorTest {
 
         assertEquals("an hour below the floor earns nothing under Edwards, by design", 0.0, edwards!!, eps)
         assertNotNull(banister)
-        assertTrue("Banister credits the same hour on the 0–100 axis ($banister)", banister!! > 40.0)
+        assertTrue("Banister credits the same hour on the 0–100 axis ($banister)", banister!! > EffortCurve.effortFromLegacy(40.0))
     }
 }

@@ -17,7 +17,7 @@ import kotlin.math.abs
 class Vo2maxFallbackTest {
     // ≥ minCoverageDays (4) RHR nights + strain so the fitness-age gate can compute.
     private fun gate(rhr: Int) = (0 until 7).map {
-        DailyMetric(deviceId = "my-whoop", day = "2026-08-%02d".format(9 + it), restingHr = rhr, strain = 50.0)
+        DailyMetric(deviceId = "my-whoop", day = "2026-08-%02d".format(9 + it), restingHr = rhr, strain = com.noop.data.EffortCurve.effortFromLegacy(50.0))
     }
 
     @Test

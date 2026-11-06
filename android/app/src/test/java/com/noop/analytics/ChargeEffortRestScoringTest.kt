@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -38,21 +39,22 @@ class ChargeEffortRestScoringTest {
     @Test
     fun effort_whoopAxisValuesMapAcrossTheWholeRange() {
         val cases = listOf(
+            // Through the load each WHOOP value stands for (EffortCurve); the Swift twin's literals.
             0.0 to 0.0,
-            1.0 to 4.761904761904762,
-            3.5 to 16.666666666666668,
-            7.0 to 33.333333333333336,
-            10.5 to 50.0,
-            12.5 to 59.523809523809526,
-            14.0 to 66.66666666666667,
-            17.5 to 83.33333333333333,
-            20.0 to 95.23809523809524,
+            1.0 to 2.09,
+            3.5 to 5.32,
+            7.0 to 12.35,
+            10.5 to 26.44,
+            12.5 to 40.49,
+            14.0 to 55.67,
+            17.5 to 100.0,
+            20.0 to 100.0,
             21.0 to 100.0,
         )
 
         cases.forEach { (whoop, effort) ->
             assertEquals(
-                "WHOOP $whoop must map proportionally onto 0–100",
+                "WHOOP $whoop must map through its load onto 0–100",
                 effort,
                 StrainScorer.effortValueFromWhoopStrain(whoop),
                 0.0,
@@ -62,24 +64,23 @@ class ChargeEffortRestScoringTest {
 
     @Test
     fun effort_trimpToStrainMapsOntoZeroHundred() {
-        // 100 × ln(t+1) / ln(7201), 2 dp.
+        // 100 × √(t / 1200), clamped, 2 dp (EffortCurve). Swift twin's stdout.
         assertEquals(0.0, StrainScorer.trimpToStrain(0.0), 0.0)
         assertEquals(0.0, StrainScorer.trimpToStrain(-5.0), 0.0) // TRIMP ≤ 0 → 0
-        assertEquals(51.96, StrainScorer.trimpToStrain(100.0), EPS)
-        assertEquals(69.99, StrainScorer.trimpToStrain(500.0), EPS)
-        assertEquals(77.78, StrainScorer.trimpToStrain(1000.0), EPS)
-        assertEquals(92.20, StrainScorer.trimpToStrain(3600.0), EPS)
-        // TRIMP 7200 (Edwards daily ceiling) saturates at the top of the scale.
+        assertEquals(28.87, StrainScorer.trimpToStrain(100.0), EPS)
+        assertEquals(64.55, StrainScorer.trimpToStrain(500.0), EPS)
+        assertEquals(91.29, StrainScorer.trimpToStrain(1000.0), EPS)
+        assertEquals(100.0, StrainScorer.trimpToStrain(3600.0), EPS)
+        // Four hours in zone 5 (TRIMP 1200) and anything above sits at the top of the scale.
         assertEquals(100.0, StrainScorer.trimpToStrain(7200.0), EPS)
     }
 
     @Test
-    fun effort_oldGoldensRescaledByHundredOverTwentyOne() {
-        // Every former 0–21 golden is the 0–100 value × 21/100 (within 2-dp rounding).
-        // trimp=1000 was 16.33 on the 0–21 scale → 16.33 × 100/21 ≈ 77.76, our 0–100 value is 77.78.
+    fun effort_oldGoldensConvertThroughTheirLoad() {
+        // A golden on the old log axis converts to today's axis exactly (EffortCurve.effortFromLegacy).
         val effort = StrainScorer.trimpToStrain(1000.0)
-        val legacy21 = 21.0 * kotlin.math.ln(1001.0) / kotlin.math.ln(7201.0)
-        assertEquals(legacy21 * (100.0 / 21.0), effort, 0.02)
+        val legacy = 100.0 * kotlin.math.ln(1001.0) / kotlin.math.ln(7201.0)
+        assertEquals(EffortCurve.effortFromLegacy(legacy), effort, 0.02)
     }
 
     /** 600 constant-bpm samples at 1 Hz so Edwards TRIMP = 600·weight·(1/60) = 10·weight. */
@@ -89,21 +90,21 @@ class ChargeEffortRestScoringTest {
     @Test
     fun effort_edwardsZoneGoldens_onZeroHundredScale() {
         // restingHR 60, maxHR 160 → hrReserve 100 → %HRR = bpm − 60.
-        // zone1 (50–60%): bpm 115 → trimp 10 → 27.00
+        // zone1 (50–60%): bpm 115 → trimp 10 → 9.13
         assertEquals(
-            27.0,
+            9.13,
             StrainScorer.strain(hrConstant(115), maxHR = 160.0, restingHR = 60.0)!!,
             EPS,
         )
-        // zone3 (70–80%): bpm 135 → trimp 30 → 38.66
+        // zone3 (70–80%): bpm 135 → trimp 30 → 15.81
         assertEquals(
-            38.66,
+            15.81,
             StrainScorer.strain(hrConstant(135), maxHR = 160.0, restingHR = 60.0)!!,
             EPS,
         )
-        // zone5 (≥90%): bpm 155 → trimp 50 → 44.27
+        // zone5 (≥90%): bpm 155 → trimp 50 → 20.41
         assertEquals(
-            44.27,
+            20.41,
             StrainScorer.strain(hrConstant(155), maxHR = 160.0, restingHR = 60.0)!!,
             EPS,
         )

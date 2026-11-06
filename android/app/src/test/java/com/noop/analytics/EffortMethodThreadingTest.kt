@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -62,7 +63,7 @@ class EffortMethodThreadingTest {
     fun banisterReachesTheDayScore() {
         val banister = score(StrainScorer.Method.BANISTER)
         assertNotNull(banister)
-        assertTrue("an hour at 45% HRR should score under Banister, got $banister", banister!! > 40.0)
+        assertTrue("an hour at 45% HRR should score under Banister, got $banister", banister!! > EffortCurve.effortFromLegacy(40.0))
     }
 
     /**

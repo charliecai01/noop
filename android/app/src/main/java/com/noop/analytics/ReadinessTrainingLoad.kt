@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import com.noop.data.DailyMetric
 
 /**
@@ -19,7 +20,8 @@ fun ReadinessEngine.evaluateWithTrainingLoad(
     trainingLoadConfiguration: TrainingLoadEngine.Configuration = TrainingLoadEngine.standard,
 ): ReadinessTrainingLoadAnalysis {
     val readiness = evaluate(days, today)
-    val trainingDays = days.map { TrainingLoadEngine.DailyLoad(it.day, it.strain) }
+    // CTL / ATL are defined on daily TRIMP, so the load is the TRIMP each day's Effort stands for.
+    val trainingDays = days.map { d -> TrainingLoadEngine.DailyLoad(d.day, d.strain?.let { EffortCurve.trimpFromEffort(it) }) }
     val trainingLoad = TrainingLoadEngine.evaluate(
         trainingDays,
         through = today,

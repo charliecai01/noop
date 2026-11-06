@@ -148,7 +148,7 @@ object DemoSeeder {
                     totalSleepMin = round1(totalSleep), efficiency = round1(efficiency),
                     deepMin = round1(deep), remMin = round1(rem), lightMin = round1(light),
                     disturbances = disturbances, restingHr = rhr, avgHrv = round1(hrv),
-                    recovery = round1(recovery), strain = round1(strain), exerciseCount = nWorkouts,
+                    recovery = round1(recovery), strain = round1(EffortCurve.effortFromLegacy(strain)), exerciseCount = nWorkouts,
                     spo2Pct = round1(spo2), skinTempDevC = round2(skinTempDev), respRateBpm = round1(resp),
                 )
             )
@@ -218,7 +218,7 @@ object DemoSeeder {
                         avgHr = avg, maxHr = (avg + gauss(rng, 22.0, 6.0)).toInt(),
                         // strain is already 0–100 (daily Effort), so the per-workout share keeps
                         // the 0–100 scale; bounds rescaled from the old 4–21 (×100/21).
-                        strain = round1((strain * gauss(rng, 0.6, 0.1)).coerceIn(4.0 * STRAIN_SCALE, 100.0)),
+                        strain = round1(EffortCurve.effortFromLegacy((strain * gauss(rng, 0.6, 0.1)).coerceIn(4.0 * STRAIN_SCALE, 100.0))),
                         distanceM = if (sport in distanceSports)
                             round1(gauss(rng, 6500.0, 2500.0).coerceAtLeast(500.0)) else null,
                         // Only WHOOP-sourced rows carry zones (matching real imports — Apple Health

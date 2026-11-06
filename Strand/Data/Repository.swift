@@ -235,6 +235,16 @@ final class Repository: ObservableObject {
     struct StrainProfile: Sendable { let hrMax: Double; let sex: String }
     var strainProfile: StrainProfile?
 
+    /// The resting HR a workout starting at `startTs` is scored against: that local day's measured
+    /// `restingHr`, the SAME value the day's own Effort uses (`AnalyticsEngine`'s `restForStrain`,
+    /// Today's live Effort), else `StrainScorer.defaultRestingHR`. One resolver, so a session and the day
+    /// it sits in are scored against the same heart-rate reserve. Before this, imported and backfilled
+    /// sessions always used 60, which moves every %HRR zone edge for anyone whose resting HR is not 60.
+    func workoutRestingHR(startTs: Int) -> Double {
+        let key = Self.localDayKey(Date(timeIntervalSince1970: TimeInterval(startTs)))
+        return days.first(where: { $0.day == key })?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
+    }
+
     /// Emit one Workouts & GPS test-mode line iff the mode is on and a sink is wired. The cheap
     /// `TestCentre.active(.workouts)` gate is checked BEFORE `build()` runs, so the string is never
     /// constructed when the mode is off (the @autoclosure defers it).
@@ -2883,6 +2893,7 @@ final class Repository: ObservableObject {
                 for idx in chunk {
                     let startTs = rows[idx].startTs
                     let endTs = rows[idx].endTs
+                    let restingHR = workoutRestingHR(startTs: startTs)
                     // Only strap-native rows still missing a strain get one computed (the fill target); an
                     // imported row, or one that already has a strain, returns nil for the slot and keeps its
                     // own. Resolve this on the main actor (WorkoutSource.classify) and capture the plain Bool,
@@ -2919,7 +2930,7 @@ final class Repository: ObservableObject {
                             let samples = (try? await store.hrSamples(deviceId: hrIds[0],
                                                                       from: startTs, to: endTs,
                                                                       limit: 8000)) ?? []
-                            strain = StrainScorer.strain(samples, maxHR: p.hrMax,
+                            strain = StrainScorer.strain(samples, maxHR: p.hrMax, restingHR: restingHR,
                                                 method: PuffinExperiment.effortMethod, sex: p.sex)
                         } else {
                             strain = nil

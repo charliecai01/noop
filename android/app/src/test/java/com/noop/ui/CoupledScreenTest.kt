@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import com.noop.data.EffortCurve
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
@@ -38,23 +39,26 @@ class CoupledScreenTest {
     }
 
     @Test fun optimalRange_bands_matchTheStruct() {
-        assertEquals(OptimalStrainRange(14, 18), optimalStrainRange(80.0))
-        assertEquals(OptimalStrainRange(10, 14), optimalStrainRange(40.0))
-        assertEquals(OptimalStrainRange(4, 10), optimalStrainRange(5.0))
+        // WHOOP's 14-18 / 10-14 / 4-10 converted through load onto the 0-21 dial. Swift twin.
+        assertEquals(OptimalStrainRange(12, 21), optimalStrainRange(80.0))
+        assertEquals(OptimalStrainRange(5, 12), optimalStrainRange(40.0))
+        assertEquals(OptimalStrainRange(1, 5), optimalStrainRange(5.0))
     }
 
     @Test fun strainBandWord_thresholds_matchTheGauge() {
-        // Fractions of 21, matching the StrandDesign StrainGauge bands at 6/10/14/18.
-        assertEquals("LIGHT", strainBandWord(4.0 / 21))
-        assertEquals("MODERATE", strainBandWord(8.0 / 21))
-        assertEquals("STRENUOUS", strainBandWord(12.0 / 21))
-        assertEquals("HIGH", strainBandWord(16.0 / 21))
-        assertEquals("ALL-OUT", strainBandWord(20.0 / 21))
-        // Boundaries are exclusive-below: exactly 6/21 rolls into MODERATE.
-        assertEquals("MODERATE", strainBandWord(6.0 / 21))
-        assertEquals("STRENUOUS", strainBandWord(10.0 / 21))
-        assertEquals("HIGH", strainBandWord(14.0 / 21))
-        assertEquals("ALL-OUT", strainBandWord(18.0 / 21))
+        // WHOOP's 6/10/14/18 converted through load (EffortCurve), matching StrandDesign StrainGauge.bandEdges.
+        assertEquals(0.0985, EffortCurve.effortFromWhoopStrain(6.0) / 100, 1e-4)
+        assertEquals(0.2375, EffortCurve.effortFromWhoopStrain(10.0) / 100, 1e-4)
+        assertEquals(0.5567, EffortCurve.effortFromWhoopStrain(14.0) / 100, 1e-4)
+        assertEquals("LIGHT", strainBandWord(0.05))
+        assertEquals("MODERATE", strainBandWord(0.15))
+        assertEquals("STRENUOUS", strainBandWord(0.2765))   // an easy hour: was 51 → WHOOP 10.7, still STRENUOUS
+        assertEquals("HIGH", strainBandWord(0.6996))        // a hard 4 h ride: was 71.8 → WHOOP 15.1, still HIGH
+        assertEquals("ALL-OUT", strainBandWord(1.0))
+        // Boundaries are exclusive-below.
+        assertEquals("MODERATE", strainBandWord(0.0985))
+        assertEquals("STRENUOUS", strainBandWord(0.2375))
+        assertEquals("HIGH", strainBandWord(0.5567))
     }
 
     @Test fun hoursMinutes_formatsAsHandM() {
@@ -71,12 +75,12 @@ class CoupledScreenTest {
      */
     @Test
     fun optimalUpperFractionMatchesTheSwiftTwin() {
-        assertEquals(18.0 / 21.0, optimalUpperFraction(90.0), 1e-12)
-        assertEquals(18.0 / 21.0, optimalUpperFraction(67.0), 1e-12)   // green, inclusive lower edge
-        assertEquals(14.0 / 21.0, optimalUpperFraction(66.9), 1e-12)
-        assertEquals(14.0 / 21.0, optimalUpperFraction(34.0), 1e-12)   // yellow, inclusive lower edge
-        assertEquals(10.0 / 21.0, optimalUpperFraction(33.9), 1e-12)
-        assertEquals(10.0 / 21.0, optimalUpperFraction(0.0), 1e-12)
+        assertEquals(21.0 / 21.0, optimalUpperFraction(90.0), 1e-12)
+        assertEquals(21.0 / 21.0, optimalUpperFraction(67.0), 1e-12)   // green, inclusive lower edge
+        assertEquals(12.0 / 21.0, optimalUpperFraction(66.9), 1e-12)
+        assertEquals(12.0 / 21.0, optimalUpperFraction(34.0), 1e-12)   // yellow, inclusive lower edge
+        assertEquals(5.0 / 21.0, optimalUpperFraction(33.9), 1e-12)
+        assertEquals(5.0 / 21.0, optimalUpperFraction(0.0), 1e-12)
     }
 
     @Test
@@ -101,24 +105,24 @@ class CoupledScreenTest {
      * 0..1 range instead of just the upper bound.
      */
     @Test
-    fun optimalFractionRange_greenDay_returns14to18() {
+    fun optimalFractionRange_greenDay_returns12to21() {
         val range = optimalFractionRange(80.0)
-        assertEquals(14.0f / 21.0f, range!!.start, 1e-6f)
-        assertEquals(18.0f / 21.0f, range.endInclusive, 1e-6f)
+        assertEquals(12.0f / 21.0f, range!!.start, 1e-6f)
+        assertEquals(21.0f / 21.0f, range.endInclusive, 1e-6f)
     }
 
     @Test
-    fun optimalFractionRange_yellowDay_returns10to14() {
+    fun optimalFractionRange_yellowDay_returns5to12() {
         val range = optimalFractionRange(50.0)
-        assertEquals(10.0f / 21.0f, range!!.start, 1e-6f)
-        assertEquals(14.0f / 21.0f, range.endInclusive, 1e-6f)
+        assertEquals(5.0f / 21.0f, range!!.start, 1e-6f)
+        assertEquals(12.0f / 21.0f, range.endInclusive, 1e-6f)
     }
 
     @Test
-    fun optimalFractionRange_redDay_returns4to10() {
+    fun optimalFractionRange_redDay_returns1to5() {
         val range = optimalFractionRange(20.0)
-        assertEquals(4.0f / 21.0f, range!!.start, 1e-6f)
-        assertEquals(10.0f / 21.0f, range.endInclusive, 1e-6f)
+        assertEquals(1.0f / 21.0f, range!!.start, 1e-6f)
+        assertEquals(5.0f / 21.0f, range.endInclusive, 1e-6f)
     }
 
     @Test

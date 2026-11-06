@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import com.noop.data.DailyMetric
 import kotlin.math.exp
 import kotlin.math.ln
@@ -265,7 +266,9 @@ object ReadinessEngine {
         }
 
         // Training Stress Balance (ACWR) + monotony --------------------------
-        val strainSeries = sorted.mapNotNull { it.strain }
+        // On LOAD (TRIMP), not on the 0–100 score: the acute:chronic bands and Foster's monotony are
+        // defined on daily training load. Swift twin: ReadinessEngine.swift.
+        val strainSeries = sorted.mapNotNull { d -> d.strain?.let { EffortCurve.trimpFromEffort(it) } }
         var acwr: Double? = null
         var monotony: Double? = null
         if (strainSeries.size >= minChronic) {

@@ -201,7 +201,10 @@ public enum ReadinessEngine {
         }
 
         // Training Stress Balance (ACWR) + monotony --------------------------
-        let strainSeries = sorted.compactMap { $0.strain }
+        // On LOAD (TRIMP), not on the 0–100 score: acute:chronic bands (0.8 / 1.3 / 1.5) and Foster's
+        // monotony ≥ 2 are defined on daily training load, and a ratio of square-root scores is the
+        // square root of the load ratio, which would hide a spike. `EffortCurve.trimp` inverts the axis.
+        let strainSeries = sorted.compactMap { $0.strain.map { EffortCurve.trimpFromEffort($0) } }
         var acwr: Double? = nil
         var monotony: Double? = nil
         if strainSeries.count >= minChronic {

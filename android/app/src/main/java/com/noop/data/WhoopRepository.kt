@@ -1433,6 +1433,10 @@ class WhoopRepository(
         // because this class holds no Context; the two UI callers pass the user's choice. EDWARDS by
         // default so a caller that does not care stays byte-identical.
         effortMethod: com.noop.analytics.StrainScorer.Method = com.noop.analytics.StrainScorer.Method.EDWARDS,
+        // The resting HR a session starting at the given unix second is scored against: the caller passes
+        // that local day's measured value, the same one the day's Effort uses. Defaults to the scorer's 60
+        // so a caller that does not care stays byte-identical. Swift twin: Repository.workoutRestingHR.
+        restingHrFor: (Long) -> Double = { com.noop.analytics.StrainScorer.defaultRestingHR },
     ): List<WorkoutRow> {
         var budget = cap
         return rows.map { row ->
@@ -1463,7 +1467,8 @@ class WhoopRepository(
             val filledStrain = if (needsStrainFill && strainMaxHR != null) {
                 val samples = dao.hrSamples(hrIds[0], row.startTs, row.endTs, 8000)
                 com.noop.analytics.StrainScorer.strain(
-                    samples, maxHR = strainMaxHR, method = effortMethod, sex = strainSex)
+                    samples, maxHR = strainMaxHR, restingHR = restingHrFor(row.startTs),
+                    method = effortMethod, sex = strainSex)
             } else null
             if (strapNative) {
                 // True mean / peak of the very samples the graph + zones + effort use; FILL a null Effort

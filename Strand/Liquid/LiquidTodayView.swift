@@ -1588,11 +1588,11 @@ struct LiquidTodayView: View {
                         Text(workoutSub(w)).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                     }
                     Spacer()
-                    (Text(effortText(w.workoutEffort)).font(StrandFont.number(15))
+                    (Text(effortText(w.strain)).font(StrandFont.number(15))
                         + Text(" EFFORT").font(StrandFont.overlineScaled(9)))
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
-                LiquidTube(frac: (w.workoutEffort ?? 0) / 100, tint: StrandPalette.effortColor, height: 12, animated: false)
+                LiquidTube(frac: (w.strain ?? 0) / 100, tint: StrandPalette.effortColor, height: 12, animated: false)
             }
         }
     }

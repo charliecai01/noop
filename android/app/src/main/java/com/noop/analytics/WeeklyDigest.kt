@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -64,7 +65,8 @@ enum class WeeklyMetric(val key: String) {
     val typicalSpread: Double
         get() = when (this) {
             CHARGE -> 12.0
-            EFFORT -> 12.0
+            // 12 log-axis points ≈ 16 on the square-root axis near a typical day. Swift twin.
+            EFFORT -> 16.0
             REST -> 12.0
             RHR -> 4.0
             HRV -> 8.0
@@ -325,7 +327,8 @@ object WeeklyDigestEngine {
         ) {
             return BalanceRead.INSUFFICIENT
         }
-        val gap = effort.mean - charge.mean
+        // balanceBand was set on the log Effort axis; read the week's mean back there. Swift twin.
+        val gap = EffortCurve.legacyFromEffort(effort.mean) - charge.mean
         return when {
             gap > BALANCE_BAND -> BalanceRead.OVERREACHING
             gap < -BALANCE_BAND -> BalanceRead.UNDERLOADED

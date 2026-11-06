@@ -450,7 +450,7 @@ struct LiveView: View {
     private func workoutSavedRow(_ row: WorkoutRow) -> some View {
         let mins = Int((row.durationS ?? 0) / 60)
         let parts = [String(localized: "\(mins) min"), row.avgHr.map { String(localized: "\($0) avg bpm") },
-                     row.workoutEffort.map { String(localized: "effort \(UnitFormatter.effortDisplay($0, scale: effortScale))") }].compactMap { $0 }
+                     row.strain.map { String(localized: "effort \(UnitFormatter.effortDisplay($0, scale: effortScale))") }].compactMap { $0 }
         return HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(StrandPalette.accent)
             Text("Workout saved · \(parts.joined(separator: " · "))")
@@ -1217,9 +1217,6 @@ private struct ActiveWorkoutLive: View {
     let workout: AppModel.ActiveWorkout
     let effortScale: EffortScale
 
-    /// The running session's Effort on the workout curve, the same one its saved row will show.
-    private var effort: Double { StrainScorer.workoutEffort(fromDayScale: workout.liveStrain) }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: NoopMetrics.gap) {
@@ -1227,12 +1224,12 @@ private struct ActiveWorkoutLive: View {
                      tint: model.bpm == nil ? StrandPalette.textPrimary : StrandPalette.metricRose)
                 stat(String(localized: "Avg"), workout.avgHr > 0 ? "\(workout.avgHr)" : "—")
                 stat(String(localized: "Peak"), workout.peakHr > 0 ? "\(workout.peakHr)" : "—")
-                stat(String(localized: "Effort"), UnitFormatter.effortDisplay(effort, scale: effortScale),
-                     tint: StrandPalette.strainColor(effort))
+                stat(String(localized: "Effort"), UnitFormatter.effortDisplay(workout.liveStrain, scale: effortScale),
+                     tint: StrandPalette.strainColor(workout.liveStrain))
             }
             // A liquid effort tube — the live effort as a fraction of the 0–100 strain axis.
-            LiquidTube(frac: max(0, min(1, effort / 100)),
-                       tint: StrandPalette.strainColor(effort), height: 10, animated: true)
+            LiquidTube(frac: max(0, min(1, workout.liveStrain / 100)),
+                       tint: StrandPalette.strainColor(workout.liveStrain), height: 10, animated: true)
                 .accessibilityHidden(true)
         }
     }

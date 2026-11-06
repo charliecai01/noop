@@ -60,7 +60,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LiftSessionRow::class,
         LiftSetEntity::class,
     ],
-    version = 42,
+    version = 43,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -80,7 +80,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 42
+        const val SCHEMA_VERSION = 43
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -1142,6 +1142,40 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v42 -> v43: DATA ONLY, no schema change. Effort moves from the log axis
+         * 100 × ln(TRIMP+1) / ln(7201) to the square-root axis 100 × √(TRIMP / 1200) ([EffortCurve]).
+         * Every stored Effort is converted through the TRIMP it stands for: the daily `strain`, each
+         * workout's `strain`, and the imported WHOOP `strain` series. Exact for Edwards-scored values;
+         * values past ≈ 79.8 land on the new ceiling of 100. Row by row in Kotlin rather than one UPDATE,
+         * so the conversion is [EffortCurve]'s own arithmetic. Twin of Swift WhoopStore `v49-effort-sqrt-axis`.
+         */
+        internal val MIGRATION_42_43 = object : Migration(42, 43) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                convertStoredEffortToSqrtAxis(db)
+            }
+        }
+
+        /** The v43 conversion. Swift twin: `WhoopStore.convertStoredEffortToSqrtAxis`. */
+        internal fun convertStoredEffortToSqrtAxis(db: SupportSQLiteDatabase) {
+            val targets = listOf(
+                Triple("dailyMetric", "strain", ""),
+                Triple("workout", "strain", ""),
+                Triple("metricSeries", "value", " AND `key` = 'strain'"),
+            )
+            for ((table, column, filter) in targets) {
+                val updates = ArrayList<Pair<Long, Double>>()
+                db.query("SELECT rowid, `$column` FROM `$table` WHERE `$column` IS NOT NULL$filter").use { c ->
+                    while (c.moveToNext()) {
+                        updates.add(c.getLong(0) to EffortCurve.effortFromLegacy(c.getDouble(1)))
+                    }
+                }
+                for ((id, effort) in updates) {
+                    db.execSQL("UPDATE `$table` SET `$column` = ? WHERE rowid = ?", arrayOf<Any>(effort, id))
+                }
+            }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -1168,7 +1202,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
             MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
-            MIGRATION_41_42,
+            MIGRATION_41_42, MIGRATION_42_43,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

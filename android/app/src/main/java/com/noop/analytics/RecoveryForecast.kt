@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.EffortCurve
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -157,9 +158,12 @@ object RecoveryForecaster {
 
         // 1. Strain debt: today vs the recent average Effort (both 0–100).
         var strainAdj = 0.0
+        // strainWeight / effortSpread were set on the log Effort axis, so both sides are compared there
+        // (EffortCurve.legacyFromEffort). Swift twin: RecoveryForecast.swift.
         if (todayEffort != null && recentEffort.isNotEmpty()) {
-            val meanEffort = mean(recentEffort.takeLast(effortWindow))
-            val excess = (todayEffort - meanEffort) / effortSpread
+            val today = EffortCurve.legacyFromEffort(todayEffort)
+            val meanEffort = mean(recentEffort.takeLast(effortWindow).map { EffortCurve.legacyFromEffort(it) })
+            val excess = (today - meanEffort) / effortSpread
             strainAdj = clamp(-strainWeight * excess, -strainAdjCap, strainAdjCap)
         }
 

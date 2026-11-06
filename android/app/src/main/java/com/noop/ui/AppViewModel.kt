@@ -762,6 +762,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var todayVo2maxCache: Double? = null
 
     /**
+     * The resting HR a workout starting at unix second [startTs] is scored against: that local day's
+     * measured `restingHr`, the same value the day's own Effort uses, else the scorer's default. One
+     * resolver so a session and its day share a heart-rate reserve. Swift twin: Repository.workoutRestingHR.
+     */
+    internal fun workoutRestingHr(startTs: Long): Double {
+        val key = java.time.Instant.ofEpochSecond(startTs).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
+        return recentDays.value.firstOrNull { it.day == key }?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR
+    }
+
+    /**
      * Recent daily metrics (newest last), backing the Today grid + illness watch.
      * MERGED: imported "my-whoop" rows win per day; on-device computed "my-whoop-noop"
      * rows (from [IntelligenceEngine]) gap-fill, so recovery/strain/sleep populate from
@@ -1878,8 +1888,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val s = w.samples + HrSample(deviceId = deviceId, ts = ts, bpm = bpm)
+        // Same measured resting HR the save path (#983) scores with, so the running number is the one the
+        // saved session will show. Swift twin: AppModel's live-strain update.
         val strain = StrainScorer.strain(
             s, maxHR = profileStore.hrMax.toDouble(),
+            restingHR = _today.value?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR,
             method = NoopPrefs.effortMethod(appContext), sex = profileStore.sex) ?: 0.0
         val updated = w.copy(
             // Grown by comparison, not recomputed from `s`, so a peak folded in from a repeated second is kept.
@@ -2105,6 +2118,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 strainMaxHR = profileStore.hrMax.toDouble(),
                 strainSex = profileStore.sex,
                 effortMethod = NoopPrefs.effortMethod(appContext),
+                restingHrFor = { ts -> workoutRestingHr(ts) },
             )
             // #687: collapse the SAME activity tracked live under the strap AND imported from Health
             // Connect / Apple Health into one richer entry — they sit under different sources so without
@@ -2151,7 +2165,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val (title, body) = if (row.strain != null) {
             ScheduledReportPolicy.workoutCopy(
                 sportLabel = WorkoutEditing.displaySport(row.sport),
-                effortDisplay = UnitFormatter.effortDisplay(StrainScorer.workoutEffort(row.strain), scale),
+                effortDisplay = UnitFormatter.effortDisplay(row.strain, scale),
                 effortMaxLabel = UnitFormatter.effortScaleMax(scale),
                 durationLabel = ScheduledReportPolicy.durationLabel(durMin),
                 avgHr = row.avgHr,

@@ -342,13 +342,17 @@ struct CoupledView: View {
 
     /// The band word (LIGHT / MODERATE / STRENUOUS / HIGH) the classic StrainGauge drew from the fill
     /// fraction, kept as the section-header trailing so the coupled read still names the effort band.
+    /// Same edges as the gauge (`StrainGauge.bandEdges`, WHOOP's 6 / 10 / 14 converted through load),
+    /// read off the 0–100 value so the word cannot drift from the gauge's.
     private var strainBandWord: String? {
-        guard let s = dayStrain21 else { return nil }
-        switch s {
-        case ..<6:   return String(localized: "Light")
-        case ..<10:  return String(localized: "Moderate")
-        case ..<14:  return String(localized: "Strenuous")
-        default:     return String(localized: "High")
+        guard let s = strain100 else { return nil }
+        let f = s / 100
+        let edges = StrainGauge.bandEdges
+        switch f {
+        case ..<edges[0]: return String(localized: "Light")
+        case ..<edges[1]: return String(localized: "Moderate")
+        case ..<edges[2]: return String(localized: "Strenuous")
+        default:          return String(localized: "High")
         }
     }
 
@@ -704,9 +708,15 @@ struct CoupledView: View {
     // score or engine; it just tells the user where a "matched" strain would sit on the 0–21 axis. The bands
     // are the APPROVED mapping and MUST stay byte-identical to the Android `optimalStrainRange`:
     //
-    //   recovery ≥ 67 (green)       → 14–18 of 21
-    //   34 ≤ recovery ≤ 66 (yellow) → 10–14
-    //   recovery < 34 (red)         → 4–10
+    //   recovery ≥ 67 (green)       → 12–21 of 21
+    //   34 ≤ recovery ≤ 66 (yellow) → 5–12
+    //   recovery < 34 (red)         → 1–5
+    //
+    // v49: these are WHOOP's 14–18 / 10–14 / 4–10 converted through the load each edge stands for onto
+    // the square-root Effort axis (`EffortCurve.effortFromWhoopStrain`: 4 → 6.08, 10 → 23.75,
+    // 14 → 55.67, 18 → 100), then put on this screen's 0–21 dial (× 0.21, the shipped formatter) and
+    // rounded. A green day's target is the same LOAD it was; only the dial reading it moved.
+    // `CoupledOptimalBandTests` pins the integers against the curve.
     //
     // nil recovery (calibrating / unscored day) → nil, the caller renders a dash, never a guessed band.
 
@@ -714,9 +724,9 @@ struct CoupledView: View {
     static func optimalStrainRange(recovery: Double?) -> ClosedRange<Int>? {
         guard let r = recovery else { return nil }
         switch r {
-        case 67...:   return 14...18
-        case 34..<67: return 10...14
-        default:      return 4...10
+        case 67...:   return 12...21
+        case 34..<67: return 5...12
+        default:      return 1...5
         }
     }
 

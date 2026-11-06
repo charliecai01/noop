@@ -21,23 +21,26 @@ final class StrainScorerTests: XCTestCase {
     }
 
     func testWhoopAxisValuesMapAcrossTheWholeEffortRange() {
+        // WHOOP's strain is logarithmic, so it converts through the load it stands for (EffortCurve),
+        // not proportionally. Values are the standalone-compiled EffortCurve's stdout. Past ~16.8 the
+        // load exceeds four hours in zone 5 and the 0–100 axis is at its ceiling.
         let cases: [(whoop: Double, effort: Double)] = [
             (0, 0),
-            (1, 4.761904761904762),
-            (3.5, 16.666666666666668),
-            (7, 33.333333333333336),
-            (10.5, 50),
-            (12.5, 59.523809523809526),
-            (14, 66.66666666666667),
-            (17.5, 83.33333333333333),
-            (20, 95.23809523809524),
+            (1, 2.09),
+            (3.5, 5.32),
+            (7, 12.35),
+            (10.5, 26.44),
+            (12.5, 40.49),
+            (14, 55.67),
+            (17.5, 100),
+            (20, 100),
             (21, 100),
         ]
 
         for sample in cases {
             XCTAssertEqual(
                 StrainScorer.effortValue(fromWhoopStrain: sample.whoop), sample.effort,
-                accuracy: 0.0, "WHOOP \(sample.whoop) must map proportionally onto 0–100"
+                accuracy: 0.0, "WHOOP \(sample.whoop) must map through its load onto 0–100"
             )
         }
     }
@@ -45,15 +48,18 @@ final class StrainScorerTests: XCTestCase {
     func testTrimpToStrainKnownValues() {
         XCTAssertEqual(StrainScorer.trimpToStrain(0), 0.0, accuracy: 1e-9)
         XCTAssertEqual(StrainScorer.trimpToStrain(-5), 0.0, accuracy: 1e-9)
-        // 10.91 × 100/21 on the rescaled axis.
-        XCTAssertEqual(StrainScorer.trimpToStrain(100), 51.96, accuracy: 1e-2)
+        // 100 × √(100 / 1200). Was 51.96 on the log axis; EffortCurve.effortFromLegacy(51.96) agrees.
+        XCTAssertEqual(StrainScorer.trimpToStrain(100), 28.87, accuracy: 1e-2)
+        XCTAssertEqual(StrainScorer.trimpToStrain(300), 50.0, accuracy: 1e-9)
+        XCTAssertEqual(StrainScorer.trimpToStrain(1200), 100.0, accuracy: 1e-9)
+        XCTAssertEqual(StrainScorer.trimpToStrain(5000), 100.0, accuracy: 1e-9)
     }
 
     func testStrainGoldenEdwardsZone5() {
         // 600 z5 samples at 1 Hz, resting 60, max 190. TRIMP = 600*5*(1/60)=50.
-        // Effort = 100*ln(51)/ln(7201) = 44.27 (was 9.3 on the 0–21 axis).
+        // Effort = 100*√(50/1200) = 20.41 (44.27 on the log axis it replaced).
         let s = StrainScorer.strain(hr(185, 600), maxHR: 190, restingHR: 60)
-        XCTAssertEqual(s!, 44.27, accuracy: 1e-2)
+        XCTAssertEqual(s!, 20.41, accuracy: 1e-2)
     }
 
     /// #137 (partial-day sanity, PR #236 review): an imported ride is a short HR ISLAND — a 1–2 h

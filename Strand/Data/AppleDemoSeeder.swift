@@ -114,7 +114,8 @@ enum AppleDemoSeeder {
                     (Double(rhr) - 55) * 1.4 - Double(disturbances) * 0.8 + gauss(&rng, 0.0, 5.0)
             ).clamped(8.0, 99.0)
 
-            // --- strain (Effort): workout-driven, rescaled 0–21 → 0–100 ---
+            // --- strain (Effort): workout-driven, rescaled 0–21 → 0–100 on the LOG axis, then converted
+            // through its load onto the square-root Effort axis at the write (`EffortCurve`, v49) ---
             let strain = (
                 (nWorkouts == 0 ? gauss(&rng, 7.5, 1.8)
                  : gauss(&rng, 13.5, 2.4) + Double(nWorkouts - 1) * 2.5) * STRAIN_SCALE
@@ -124,7 +125,7 @@ enum AppleDemoSeeder {
                 day: day, totalSleepMin: round1(totalSleep), efficiency: round1(efficiency),
                 deepMin: round1(deep), remMin: round1(rem), lightMin: round1(light),
                 disturbances: disturbances, restingHr: rhr, avgHrv: round1(hrv),
-                recovery: round1(recovery), strain: round1(strain), exerciseCount: nWorkouts,
+                recovery: round1(recovery), strain: round1(EffortCurve.effortFromLegacy(strain)), exerciseCount: nWorkouts,
                 spo2Pct: round1(spo2), skinTempDevC: round2(skinTempDev), respRateBpm: round1(resp)))
 
             // --- sleep session: previous night ~23:10 → wake, with a REAL stage timeline so the
@@ -184,7 +185,7 @@ enum AppleDemoSeeder {
                     durationS: round1(durSec),
                     energyKcal: round1((durSec / 60) * gauss(&rng, 9.0, 2.0)),
                     avgHr: avg, maxHr: avg + Int(gauss(&rng, 22.0, 6.0)),
-                    strain: round1((strain * gauss(&rng, 0.6, 0.1)).clamped(4.0 * STRAIN_SCALE, 100.0)),
+                    strain: round1(EffortCurve.effortFromLegacy((strain * gauss(&rng, 0.6, 0.1)).clamped(4.0 * STRAIN_SCALE, 100.0))),
                     distanceM: DISTANCE_SPORTS.contains(sport) ? round1(gauss(&rng, 6500.0, 2500.0).atLeast(500.0)) : nil,
                     zonesJSON: zonesJSON, notes: nil, steps: nil))
             }

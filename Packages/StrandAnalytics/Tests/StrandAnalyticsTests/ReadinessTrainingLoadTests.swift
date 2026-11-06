@@ -71,6 +71,7 @@ final class ReadinessTrainingLoadTests: XCTestCase {
 
         XCTAssertEqual(paired.trainingLoad.endDay, "2026-01-20")
         XCTAssertEqual(paired.trainingLoad.contiguousDays, 20)
-        XCTAssertEqual(paired.trainingLoad.points.last?.load, 10)
+        // Effort 10 is a load of 12 TRIMP (1200 × 0.1²); CTL/ATL run on load.
+        XCTAssertEqual(paired.trainingLoad.points.last?.load ?? 0, 12, accuracy: 1e-9)
     }
 }

@@ -36,7 +36,8 @@ final class ReadinessEngineTests: XCTestCase {
         XCTAssertEqual(r.signals.first { $0.key == "acwr" }?.flag, .good)
         XCTAssertEqual(r.signals.first { $0.key == "hrv" }?.evidence, "72 vs 60 ms")
         XCTAssertEqual(r.signals.first { $0.key == "rhr" }?.evidence, "46 vs 52 bpm")
-        XCTAssertEqual(r.signals.first { $0.key == "acwr" }?.evidence, "7d 10.0 / 28d 10.0")
+        // Effort 10 every day is a daily load of 12 TRIMP (1200 × 0.1²): ACWR reads load, not the score.
+        XCTAssertEqual(r.signals.first { $0.key == "acwr" }?.evidence, "7d 12.0 / 28d 12.0")
     }
 
     func testRundownWhenTwoRecoverySignalsDown() {

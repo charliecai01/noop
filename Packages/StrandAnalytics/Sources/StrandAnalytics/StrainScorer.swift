@@ -1,5 +1,6 @@
 import Foundation
 import WhoopProtocol
+import WhoopStore
 
 // StrainScorer.swift — cardiovascular load on a 0–100 logarithmic strain ("Effort") scale.
 //
@@ -67,12 +68,11 @@ public enum StrainScorer {
     /// Map any value on WHOOP's 0–21 Day Strain axis onto NOOP's current 0–`maxStrain` Effort axis.
     /// This is deliberately a value conversion, not a one-off threshold constant: callers carrying
     /// any range boundary from the 0–21 scale must pass it through the same mapping.
-    /// Kotlin twin: `StrainScorer.effortValueFromWhoopStrain`. Multiplies by the pre-divided ratio so
-    /// the result is bit-identical to the importers' existing rescale of the same fact
-    /// (`WhoopExportImporter.dayStrainToEffortScale`, `WhoopCsvImporter.DAY_STRAIN_TO_EFFORT_SCALE`);
-    /// `value * maxStrain / whoopMaxStrain` disagrees with them by an ULP on about a quarter of inputs.
+    /// WHOOP's strain is logarithmic, so the mapping goes through the load it stands for
+    /// (`EffortCurve.effortFromWhoopStrain`), the same conversion the importers write with.
+    /// Kotlin twin: `StrainScorer.effortValueFromWhoopStrain`.
     public static func effortValue(fromWhoopStrain value: Double) -> Double {
-        value * (maxStrain / whoopMaxStrain)
+        EffortCurve.effortFromWhoopStrain(value)
     }
 
     /// Logarithmic-map denominator D. Chosen so the Edwards daily ceiling
@@ -394,9 +394,10 @@ public enum StrainScorer {
 
     // MARK: - Logarithmic map
 
-    /// Map accumulated TRIMP onto [0, 100] via 100 × ln(TRIMP+1) / ln(D), 2 dp.
-    /// TRIMP ≤ 0 → 0, and D ≤ 1 (or NaN) → 0, being outside the map's domain. The output is
-    /// unbounded as D → 1⁺ — an upper clamp is tracked separately.
+    /// Map accumulated TRIMP onto [0, 100] via 100 × √(TRIMP / ((D − 1) / 6)), clamped, 2 dp
+    /// (`EffortCurve`). Until v49 this was 100 × ln(TRIMP+1) / ln(D); `EffortCurve.effortFromLegacy`
+    /// converts a value from that axis exactly. TRIMP ≤ 0 → 0, and D ≤ 1 (or NaN) → 0, being outside
+    /// the map's domain.
     ///
     /// The default D is **Edwards'**. A Banister TRIMP passed here without an explicit denominator is
     /// scored against the wrong ceiling and reads low — prefer `strain(…)`, which resolves the
@@ -408,36 +409,9 @@ public enum StrainScorer {
         // TRIMP ≤ 0 — before this guard D = 1 returned +Inf here and a saturated 9.2e16 on Android
         // for the same input (the denominator-domain fix). The default 7201 is unaffected.
         guard denominator > 1 else { return 0 }
-        let value = maxStrain * log(trimp + 1.0) / log(denominator)
-        return (value * 100).rounded() / 100
-    }
-
-    // MARK: - Workout Effort curve
-
-    /// TRIMP that a single workout needs to score a full 100 on the workout curve: four hours held in
-    /// Edwards zone 5 (240 min × weight 5). The day axis tops out at 24 h in zone 5, which no session
-    /// approaches, so a session needs its own ceiling.
-    public static let workoutEffortCeilingTrimp: Double = 1200.0
-
-    /// Re-curve a stored Effort from the DAY axis, `100 × ln(TRIMP+1) / ln(7201)`, onto the WORKOUT
-    /// axis, `100 × √(TRIMP / workoutEffortCeilingTrimp)`, clamped to 0...100 and rounded to 2 dp.
-    ///
-    /// The day axis is logarithmic, which compresses sessions hard: an easy hour on the bike (TRIMP ≈ 90)
-    /// scored 51 and a hard four-hour ride carrying six times the load (TRIMP ≈ 590) scored 72. Under the
-    /// square root a load ratio of 4 is a score ratio of 2, so the same pair reads about 28 and 70.
-    ///
-    /// Display only. Stored workout rows keep the day-axis value, so ActivityCost, workout detection,
-    /// imports, exports and `.noopbak` are unchanged, and every screen showing a session's Effort runs it
-    /// through this one function. The inverse is exact for Edwards-scored rows; a Banister row was mapped
-    /// with its own denominator and comes back approximate, but still monotone.
-    ///
-    /// Kotlin twin: `StrainScorer.workoutEffort`.
-    public static func workoutEffort(fromDayScale effort: Double) -> Double {
-        guard effort.isFinite, effort > 0 else { return 0 }
-        let trimp = exp(min(effort, maxStrain) / maxStrain * log(strainDenominator)) - 1.0
-        guard trimp > 0 else { return 0 }
-        let value = min(maxStrain, maxStrain * (trimp / workoutEffortCeilingTrimp).squareRoot())
-        return (value * 100).rounded() / 100
+        // The axis is `EffortCurve`'s square-root map: four of the method's twenty-four ceiling hours
+        // score 100. D still names the method's daily ceiling (+1), so each method keeps its own scale.
+        return EffortCurve.effortFromTrimp(trimp, ceiling: EffortCurve.ceilingTrimp(denominator: denominator))
     }
 
     // MARK: - Denominator calibration

@@ -1,4 +1,5 @@
 import Foundation
+import WhoopStore
 
 // WeeklyDigest.swift — a deterministic, offline "week in review".
 //
@@ -74,7 +75,10 @@ public enum WeeklyMetric: String, CaseIterable, Sendable {
     public var typicalSpread: Double {
         switch self {
         case .charge: return 12.0   // recovery points
-        case .effort: return 12.0   // Effort points
+        // 12 points on the log axis v49 replaced. Near a typical day (log 50–55, Effort ≈ 26–33) the
+        // square-root axis moves ≈ 1.3 points per log point, so the same week-over-week change in load
+        // reads as ≈ 16 points now.
+        case .effort: return 16.0   // Effort points
         case .rest:   return 12.0   // Rest points
         case .rhr:    return 4.0    // bpm
         case .hrv:    return 8.0    // ms
@@ -297,7 +301,10 @@ public enum WeeklyDigestEngine {
             effort.n >= minDaysForFocus, charge.n >= minDaysForFocus
         else { return .insufficient }
 
-        let gap = effort.mean - charge.mean
+        // `balanceBand` and the Effort-vs-Charge comparison were set on the log Effort axis, where a
+        // typical day sat near the Charge midrange. The square-root axis puts the same day lower, so the
+        // week's mean Effort is read back on that axis (`EffortCurve.legacy`) before comparing.
+        let gap = EffortCurve.legacyFromEffort(effort.mean) - charge.mean
         if gap > balanceBand { return .overreaching }
         if gap < -balanceBand { return .underloaded }
         return .balanced

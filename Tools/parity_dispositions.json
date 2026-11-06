@@ -436,6 +436,23 @@
       "identity_sha256": "6aa52285ae46cf0ae75a690feee01765f9401825b6c9845c146163fdf5b2bb3e",
       "platform": "swift",
       "rationale": "A LOCAL binding inside the private v16 ECG decoder (#2847), not a static constant. The ledger's Swift rule treats any four-space `let` in a file-scope function as a candidate `static let`, which is how it finds file-scope constants without parsing, so a local in a top-level `private func` lands in the inventory. The Kotlin twin's equivalent is a local `val` in its own decodeWhoop5HistoricalV16, which the Kotlin rule never inventories because it matches `const val` only, and a Set-valued or object-valued local cannot be `const` in Kotlin at all. There is nothing to pair and nothing to change in either decoder."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#41",
+      "identity_sha256": "adaa74b3e05b17f100a3b6f0e11995f084ed0bdea2f6246e68ba823d84a3d1b1",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_42_43, the data-only conversion of stored Effort onto the square-root axis. GRDB registers each migration as a closure (`v49-effort-sqrt-axis`), so there is no Swift function to pair with; the body delegates to convertStoredEffortToSqrtAxis, which IS paired with its Swift twin, and the migration identifiers are pinned in schema_oracle.json."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::fillWorkoutHrFromStrap/8#1",
+      "identity_sha256": "c3936007231f89b6a7a3ae1116d1b83f7fdc9af4be9a445cc22124a280c72689",
+      "platform": "kotlin",
+      "rationale": "Swift Repository.reconcileWorkoutHrWithTrace has the same role in the excluded app layer; the eighth parameter is the per-day resting-HR resolver that mirrors Repository.workoutRestingHR. This disposition does not assert behavioral parity.",
+      "twin_path": "Strand/Data/Repository.swift"
     }
   ]
 }

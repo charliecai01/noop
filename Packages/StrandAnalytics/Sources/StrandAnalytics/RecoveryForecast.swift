@@ -1,4 +1,5 @@
 import Foundation
+import WhoopStore
 
 // RecoveryForecast.swift — an evening estimate of TOMORROW-morning Charge.
 //
@@ -156,9 +157,13 @@ public enum RecoveryForecaster {
         let slope = leastSquaresSlope(chargeWindow)
 
         // 1. Strain debt: today vs the recent average Effort (both 0–100).
+        // `strainWeight` / `effortSpread` were set on the log Effort axis the v49 square-root axis
+        // replaced, so both sides are compared there (`EffortCurve.legacy`): the same loads still move
+        // the forecast by the same points.
         var strainAdj = 0.0
-        if let today = todayEffort, !recentEffort.isEmpty {
-            let meanEffort = mean(Array(recentEffort.suffix(effortWindow)))
+        if let todayRaw = todayEffort, !recentEffort.isEmpty {
+            let today = EffortCurve.legacyFromEffort(todayRaw)
+            let meanEffort = mean(Array(recentEffort.suffix(effortWindow)).map(EffortCurve.legacyFromEffort))
             let excess = (today - meanEffort) / effortSpread
             strainAdj = clamp(-strainWeight * excess, -strainAdjCap, strainAdjCap)
         }

@@ -18,7 +18,7 @@ final class Vo2maxFallbackTests: XCTestCase {
         (0..<7).map { i in
             DailyMetric(day: String(format: "2026-08-%02d", 9 + i), totalSleepMin: nil, efficiency: nil,
                         deepMin: nil, remMin: nil, lightMin: nil, disturbances: nil, restingHr: rhr,
-                        avgHrv: nil, recovery: nil, strain: 50, exerciseCount: nil)
+                        avgHrv: nil, recovery: nil, strain: EffortCurve.effortFromLegacy(50), exerciseCount: nil)
         }
     }
 

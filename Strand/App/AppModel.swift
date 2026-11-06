@@ -1093,7 +1093,10 @@ final class AppModel: ObservableObject {
         }
         w.peakHr = max(w.peakHr, hr)
         w.avgHr = Int((Double(w.samples.map(\.bpm).reduce(0, +)) / Double(w.samples.count)).rounded())
+        // Same measured resting HR the save path (#983) scores with, so the running number is the one
+        // the saved session will show rather than a figure on a different heart-rate reserve.
         w.liveStrain = StrainScorer.strain(w.samples, maxHR: Double(profile.hrMax),
+                                              restingHR: repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR,
                                               method: PuffinExperiment.effortMethod, sex: profile.sex) ?? 0
         activeWorkout = w
         // Re-snapshot the durable session so a kill keeps the latest accumulated HR window (#529).

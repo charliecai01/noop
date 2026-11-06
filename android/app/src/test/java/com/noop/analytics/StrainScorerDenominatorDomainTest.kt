@@ -42,25 +42,22 @@ class StrainScorerDenominatorDomainTest {
 
     @Test
     fun `valid denominators are unchanged`() {
-        assertEquals(7.7999999999999998, StrainScorer.trimpToStrain(1.0, 7201.0), 1e-9)
-        assertEquals(51.960000000000001, StrainScorer.trimpToStrain(100.0, 7201.0), 1e-9)
+        // Square-root axis since MIGRATION_42_43 (EffortCurve); Swift twin's stdout.
+        assertEquals(2.89, StrainScorer.trimpToStrain(1.0, 7201.0), 1e-9)
+        assertEquals(28.87, StrainScorer.trimpToStrain(100.0, 7201.0), 1e-9)
         assertEquals(100.0, StrainScorer.trimpToStrain(7200.0, 7201.0), 1e-9)
         assertEquals(100.0, StrainScorer.trimpToStrain(1.0, 2.0), 1e-9)
     }
 
     /**
-     * Just above the boundary the score is enormous but finite, and it must stay a Double on both
-     * platforms — this is the value `roundToLong()` clipped to Long.MAX / 100.
-     *
-     * Loosely toleranced on purpose: ln(1 + 2⁻⁵²) is ~2.2e-16, so a 1-ulp difference between the
-     * JVM's and Darwin's `log` moves the quotient by ~±30 absolute. Linux observes exactly
-     * 3.1216573840826803e+17 on both sides; the assertion checks the magnitude, not the last bits.
+     * Just above the boundary the session ceiling is a vanishing positive TRIMP, so any load saturates.
+     * Under the log map this was a finite 3.1e17; the square-root axis clamps it to its top.
      */
     @Test
     fun `denominator just above one stays finite`() {
         val s = StrainScorer.trimpToStrain(1.0, 1.0000000000000002)
         assertTrue(s.isFinite())
-        assertEquals(3.1216573840826803e+17, s, 1e4)
+        assertEquals(100.0, s, 0.0)
     }
 
     /**
@@ -72,10 +69,9 @@ class StrainScorerDenominatorDomainTest {
      */
     @Test
     fun `non-finite trimp propagates`() {
+        // +∞ load sits at the axis' ceiling; NaN still propagates so corrupt input stays visible.
         val inf = StrainScorer.trimpToStrain(Double.POSITIVE_INFINITY, 7201.0)
-        assertTrue(!inf.isFinite())
-        assertTrue(!inf.isNaN())
-        assertTrue(inf > 0)
+        assertEquals(100.0, inf, 0.0)
         assertTrue(StrainScorer.trimpToStrain(Double.NaN, 7201.0).isNaN())
     }
 }
