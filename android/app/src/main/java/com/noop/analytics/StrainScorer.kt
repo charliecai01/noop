@@ -4,7 +4,9 @@ import com.noop.data.HrSample
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.roundToLong
+import kotlin.math.sqrt
 
 /*
  * StrainScorer.kt — cardiovascular load (NOOP "Effort") on a 0–100 logarithmic scale.
@@ -472,6 +474,34 @@ object StrainScorer {
         // collapse it to 0.0, and break parity with Swift.
         val rounded = if (abs(scaled) < 9007199254740992.0) scaled.roundToLong().toDouble() else scaled
         return rounded / 100.0
+    }
+
+    // ---- Workout Effort curve ----
+
+    /**
+     * TRIMP that a single workout needs to score a full 100 on the workout curve: four hours held in
+     * Edwards zone 5 (240 min × weight 5). The day axis tops out at 24 h in zone 5, which no session
+     * approaches, so a session needs its own ceiling.
+     */
+    const val workoutEffortCeilingTrimp: Double = 1200.0
+
+    /**
+     * Re-curve a stored Effort from the DAY axis, `100 × ln(TRIMP+1) / ln(7201)`, onto the WORKOUT
+     * axis, `100 × √(TRIMP / workoutEffortCeilingTrimp)`, clamped to 0..100 and rounded to 2 dp.
+     *
+     * The day axis is logarithmic and compresses sessions hard: an easy hour on the bike (TRIMP ≈ 90)
+     * scored 51 and a hard four-hour ride carrying six times the load scored 72. Under the square root
+     * a load ratio of 4 is a score ratio of 2, so the same pair reads about 28 and 70.
+     *
+     * Display only: stored workout rows keep the day-axis value, and every screen showing a session's
+     * Effort runs it through this one function. Swift twin: `StrainScorer.workoutEffort(fromDayScale:)`.
+     */
+    fun workoutEffort(dayScale: Double): Double {
+        if (!dayScale.isFinite() || dayScale <= 0) return 0.0
+        val trimp = exp(min(dayScale, maxStrain) / maxStrain * ln(strainDenominator)) - 1.0
+        if (trimp <= 0) return 0.0
+        val value = min(maxStrain, maxStrain * sqrt(trimp / workoutEffortCeilingTrimp))
+        return (value * 100).roundToLong().toDouble() / 100.0
     }
 
     // ---- Denominator calibration ----

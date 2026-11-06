@@ -1031,7 +1031,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">结束时间</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">上方的平均值已被手动修改。不过图表、心率区间以及负荷分数仍将沿用实际记录的会话数据。</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">这些运动记录还没有打上项目标签。请为合并后的记录选一个标签吧。</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">本次运动在发生期间积累的负荷，将直接计入您全天的总负荷(Effort)中。</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">本次训练的强度。100 约等于在最高心率区间内持续四小时。</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">本次运动的负荷：%1$s (显示在 %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">总消耗卡路里</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">总距离</string>

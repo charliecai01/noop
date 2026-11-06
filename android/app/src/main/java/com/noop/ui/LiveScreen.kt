@@ -73,6 +73,7 @@ import androidx.compose.material3.Switch
 import com.noop.analytics.HrZones
 import com.noop.analytics.SpotHrvReading
 import com.noop.analytics.Sport
+import com.noop.analytics.StrainScorer
 import com.noop.analytics.WorkoutSport
 import com.noop.ble.LiveState
 import com.noop.oura.OuraWearState
@@ -420,8 +421,8 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                             accent = if (bpm == null) Palette.textPrimary else Palette.metricRose)
                         StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_avg_cdc93143), value = if (w.avgHr > 0) "${w.avgHr}" else "—")
                         StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_peak_c83dbbd3), value = if (w.peakHr > 0) "${w.peakHr}" else "—")
-                        StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_effort_8c974bc6), value = UnitFormatter.effortDisplay(w.liveStrain, effortScale),
-                            accent = Palette.strainColor(w.liveStrain))
+                        StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_effort_8c974bc6), value = UnitFormatter.effortDisplay(StrainScorer.workoutEffort(w.liveStrain), effortScale),
+                            accent = Palette.strainColor(StrainScorer.workoutEffort(w.liveStrain)))
                     }
                     if (w.gpsEnabled) {
                         Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap)) {
@@ -506,7 +507,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                     "$mins min",
                     row.distanceM?.let { liveDistance(it, unitSystem) },
                     row.avgHr?.let { "$it avg bpm" },
-                    row.strain?.let { "strain ${UnitFormatter.effortDisplay(it, effortScale)}" },
+                    row.workoutEffort?.let { "strain ${UnitFormatter.effortDisplay(it, effortScale)}" },
                 )
                 Text(
                     uiString(R.string.live_workout_saved_summary, row.sport, parts.joinToString(" · ")),

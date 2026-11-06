@@ -1154,7 +1154,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">Terminato</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">La media qui sopra è stata modificata. Il grafico, le zone e lo Sforzo restano quelli della sessione registrata.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">Queste sessioni non hanno ancora un\'etichetta sport. Scegline una per la sessione unita.</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">Il contributo di questa sessione allo sforzo della giornata, come rilevato durante l\'allenamento.</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">Quanto è stata intensa questa sessione. 100 equivale a circa quattro ore nella tua zona di frequenza cardiaca più alta.</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">Lo Sforzo di questa sessione, %1$s sulla %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">Calorie totali</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">Distanza totale</string>

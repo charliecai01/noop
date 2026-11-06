@@ -89,7 +89,7 @@ struct WorkoutDetailView: View {
             hrCurveCard
             zonesCard
             heartRateRecoveryCard
-            if let strain = row.strain {
+            if let strain = row.workoutEffort {
                 effortCard(strain: strain)
             }
         }
@@ -561,7 +561,7 @@ struct WorkoutDetailView: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(String(localized: "Effort \(UnitFormatter.effortDisplay(strain, scale: effortScale)) \(effortScale == .whoop ? "of 21" : "of 100")"))
                     Spacer(minLength: 0)
-                    Text("This session's contribution to the day's Effort, as captured during the workout.")
+                    Text("How hard this session was. 100 is about four hours in your top heart-rate zone.")
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -1,9 +1,17 @@
 package com.noop.ui
 
+import com.noop.analytics.StrainScorer
 import com.noop.analytics.WorkoutsTrace
 import com.noop.data.DismissedWorkout
 import com.noop.data.WorkoutRow
 import kotlin.math.roundToInt
+
+/**
+ * This session's Effort on the WORKOUT curve ([StrainScorer.workoutEffort]), the one value every screen
+ * showing a session's Effort reads. [WorkoutRow.strain] stays on the day axis in storage.
+ * Swift twin: `WorkoutRow.workoutEffort`.
+ */
+val WorkoutRow.workoutEffort: Double? get() = strain?.let { StrainScorer.workoutEffort(it) }
 
 /*
  * WorkoutEditing.kt — pure, Compose-free workout-editing logic (manual add/edit, detected-bout

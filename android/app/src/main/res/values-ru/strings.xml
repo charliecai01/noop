@@ -1066,7 +1066,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">Завершена</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">Среднее значение выше было изменено вручную. График, зоны и Усилие остаются взятыми из записанной тренировки.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">У этих сессий пока нет вида спорта. Выберите его для объединённой сессии.</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">Вклад этой сессии в Усилие за день, зафиксированный во время тренировки.</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">Насколько тяжёлой была эта тренировка. 100 — это около четырёх часов в вашей самой высокой пульсовой зоне.</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">Усилие этой сессии, %1$s по %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">Всего калорий</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">Общая дистанция</string>

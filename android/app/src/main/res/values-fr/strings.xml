@@ -907,7 +907,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">Terminé</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">La moyenne ci-dessus a été modifiée. Le graphique, les zones et l\'Effort restent ceux de la séance enregistrée.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">Ces séances n\'ont pas encore de label sportif. Choisissez un pour la session fusionnée.</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">La contribution de cette séance à l\'Effort du jour, telle que capturée pendant l\'entraînement.</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">L\'intensité de cette séance. 100 correspond à environ quatre heures dans ta zone de fréquence cardiaque la plus haute.</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">Effort de cette session, %1$s sur le %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">Calories totales</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">Distance totale</string>

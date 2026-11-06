@@ -105889,6 +105889,64 @@
         }
       }
     },
+    "How hard this session was. 100 is about four hours in your top heart-rate zone." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie hart diese Sitzung war. 100 entspricht etwa vier Stunden in deiner höchsten Herzfrequenzzone."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo exigente que fue esta sesión. 100 equivale a unas cuatro horas en tu zona de frecuencia cardíaca más alta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'intensité de cette séance. 100 correspond à environ quatre heures dans ta zone de fréquence cardiaque la plus haute."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quanto è stata intensa questa sessione. 100 equivale a circa quattro ore nella tua zona di frequenza cardiaca più alta."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak ciężka była ta sesja. 100 to około czterech godzin w Twojej najwyższej strefie tętna."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A intensidade desta sessão. 100 equivale a cerca de quatro horas na tua zona de frequência cardíaca mais alta."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Насколько тяжёлой была эта тренировка. 100 — это около четырёх часов в вашей самой высокой пульсовой зоне."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次训练的强度。100 约等于在最高心率区间内持续四小时。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次訓練的強度。100 約等於在最高心率區間內持續四小時。"
+          }
+        }
+      }
+    },
     "How hard was the whole session? (1–10)" : {
       "localizations" : {
         "de" : {

@@ -1089,7 +1089,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">Ende</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">Der Durchschnitt oben wurde bearbeitet. Graph, Zonen und Anstrengung bleiben aus der aufgezeichneten Sitzung.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">Diese Sessions haben noch kein Sportlabel. Wähle eine für die fusionierte Sitzung.</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">Der Beitrag dieser Sitzung zur Tages-Anstrengung, wie während des Workouts erfasst.</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">Wie hart diese Sitzung war. 100 entspricht etwa vier Stunden in deiner höchsten Herzfrequenzzone.</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">Diese Sitzung Anstrengung, %1$s auf der %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">Kalorien gesamt</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">Distanz gesamt</string>

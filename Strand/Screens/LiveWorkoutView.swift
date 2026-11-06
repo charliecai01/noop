@@ -201,7 +201,8 @@ struct LiveWorkoutView: View {
     /// label as before. Card chrome and side-by-side layout removed so the value sits as a free hero
     /// metric between heart rate and the zone rail. Display-only; captured value stays 0–100.
     private var effortGauge: some View {
-        let strain = model.activeWorkout?.liveStrain ?? 0
+        // On the workout curve, the same value the saved session will show.
+        let strain = StrainScorer.workoutEffort(fromDayScale: model.activeWorkout?.liveStrain ?? 0)
         let displayEffort = UnitFormatter.effortValue(strain, scale: effortScale)
         let maxValue = effortScale == .whoop ? 21.0 : 100.0
         let fraction = min(max(displayEffort / maxValue, 0), 1)
@@ -291,8 +292,8 @@ struct LiveWorkoutView: View {
                 stat(String(localized: "PEAK"), (w?.peakHr ?? 0) > 0 ? "\(w!.peakHr)" : "—",
                      tint: (w?.peakHr ?? 0) > 0 ? StrandPalette.metricRose : StrandPalette.textPrimary)
                 statDivider
-                stat(String(localized: "EFFORT"), UnitFormatter.effortDisplay(w?.liveStrain ?? 0, scale: effortScale),
-                     tint: StrandPalette.strainColor(w?.liveStrain ?? 0))
+                stat(String(localized: "EFFORT"), UnitFormatter.effortDisplay(StrainScorer.workoutEffort(fromDayScale: w?.liveStrain ?? 0), scale: effortScale),
+                     tint: StrandPalette.strainColor(StrainScorer.workoutEffort(fromDayScale: w?.liveStrain ?? 0)))
             }
         }
     }

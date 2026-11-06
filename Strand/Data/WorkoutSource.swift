@@ -14,6 +14,12 @@ import StrandAnalytics   // WorkoutsTrace: the dedup-decision line formatter for
 ///
 /// Classification order matters: "-noop" is checked BEFORE "whoop" because the computed id
 /// "my-whoop-noop" also contains the substring "whoop".
+extension WorkoutRow {
+    /// This session's Effort on the WORKOUT curve (`StrainScorer.workoutEffort`), the one value every
+    /// screen showing a session's Effort reads. `strain` stays on the day axis in storage.
+    var workoutEffort: Double? { strain.map(StrainScorer.workoutEffort(fromDayScale:)) }
+}
+
 enum WorkoutSource: Equatable {
     case whoop, apple, detected, manual, lifting, activityFile
 

@@ -1183,7 +1183,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">Ended</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">The average above was edited. The graph, zones and Effort stay from the recorded session.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">These sessions have no sport label yet. Pick one for the merged session.</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">This session\'s contribution to the day\'s Effort, as captured during the workout.</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">How hard this session was. 100 is about four hours in your top heart-rate zone.</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">This session\'s Effort, %1$s on the %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">Total Calories</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">Total Distance</string>

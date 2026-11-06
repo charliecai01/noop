@@ -1040,7 +1040,7 @@
     <string name="l10n_workouts_screen_ended_90303d8d">Zakończyło się</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">Powyższa średnia została edytowana. Wykres, strefy i Wysiłek pozostają z zarejestrowanej sesji.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">Sesje te nie mają jeszcze etykiety sportowej. Wybierz jedną do połączonej sesji.</string>
-    <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">Udział tej sesji w dziennym Wysiłek zarejestrowany podczas treningu.</string>
+    <string name="l10n_workouts_screen_how_hard_this_session_was">Jak ciężka była ta sesja. 100 to około czterech godzin w Twojej najwyższej strefie tętna.</string>
     <string name="l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be">Ta sesja jest Wysiłek, %1$s na %2$s scale.</string>
     <string name="l10n_workouts_screen_total_calories_0a49da20">Całkowita liczba kalorii</string>
     <string name="l10n_workouts_screen_total_distance_e8260e11">Całkowita odległość</string>

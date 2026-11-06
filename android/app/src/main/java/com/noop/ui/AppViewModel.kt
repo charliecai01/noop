@@ -2151,7 +2151,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val (title, body) = if (row.strain != null) {
             ScheduledReportPolicy.workoutCopy(
                 sportLabel = WorkoutEditing.displaySport(row.sport),
-                effortDisplay = UnitFormatter.effortDisplay(row.strain, scale),
+                effortDisplay = UnitFormatter.effortDisplay(StrainScorer.workoutEffort(row.strain), scale),
                 effortMaxLabel = UnitFormatter.effortScaleMax(scale),
                 durationLabel = ScheduledReportPolicy.durationLabel(durMin),
                 avgHr = row.avgHr,

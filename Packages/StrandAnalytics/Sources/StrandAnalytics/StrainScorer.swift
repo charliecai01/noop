@@ -412,6 +412,34 @@ public enum StrainScorer {
         return (value * 100).rounded() / 100
     }
 
+    // MARK: - Workout Effort curve
+
+    /// TRIMP that a single workout needs to score a full 100 on the workout curve: four hours held in
+    /// Edwards zone 5 (240 min × weight 5). The day axis tops out at 24 h in zone 5, which no session
+    /// approaches, so a session needs its own ceiling.
+    public static let workoutEffortCeilingTrimp: Double = 1200.0
+
+    /// Re-curve a stored Effort from the DAY axis, `100 × ln(TRIMP+1) / ln(7201)`, onto the WORKOUT
+    /// axis, `100 × √(TRIMP / workoutEffortCeilingTrimp)`, clamped to 0...100 and rounded to 2 dp.
+    ///
+    /// The day axis is logarithmic, which compresses sessions hard: an easy hour on the bike (TRIMP ≈ 90)
+    /// scored 51 and a hard four-hour ride carrying six times the load (TRIMP ≈ 590) scored 72. Under the
+    /// square root a load ratio of 4 is a score ratio of 2, so the same pair reads about 28 and 70.
+    ///
+    /// Display only. Stored workout rows keep the day-axis value, so ActivityCost, workout detection,
+    /// imports, exports and `.noopbak` are unchanged, and every screen showing a session's Effort runs it
+    /// through this one function. The inverse is exact for Edwards-scored rows; a Banister row was mapped
+    /// with its own denominator and comes back approximate, but still monotone.
+    ///
+    /// Kotlin twin: `StrainScorer.workoutEffort`.
+    public static func workoutEffort(fromDayScale effort: Double) -> Double {
+        guard effort.isFinite, effort > 0 else { return 0 }
+        let trimp = exp(min(effort, maxStrain) / maxStrain * log(strainDenominator)) - 1.0
+        guard trimp > 0 else { return 0 }
+        let value = min(maxStrain, maxStrain * (trimp / workoutEffortCeilingTrimp).squareRoot())
+        return (value * 100).rounded() / 100
+    }
+
     // MARK: - Denominator calibration
 
     /// Calibrate D from (TRIMP, reference_strain) pairs via the through-origin
