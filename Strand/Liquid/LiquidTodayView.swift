@@ -1559,7 +1559,7 @@ struct LiquidTodayView: View {
 
     private var lastWorkoutsSection: some View {
         VStack(spacing: 8) {
-            sectionHead("LAST WORKOUTS", trailing: "\(workouts.count) total")
+            sectionHead("LAST WORKOUTS", trailing: "14 days")
             if let w = workouts.first {
                 // Opens THIS session's read-only detail, the same sheet the classic Today feed and the
                 // Workouts list present (#1694). The old link pushed the whole Workouts list, so the
@@ -1860,7 +1860,12 @@ struct LiquidTodayView: View {
         let hrBuckets = await hrA
         hrValues = hrBuckets.map { $0.bpm }
         hrSegments = hrGapSegments(bucketTs: hrBuckets.map { $0.ts }, bucketSeconds: 300)
-        workouts = (await wkA).filter { $0.startTs >= from && $0.startTs < to }
+        // Last Workouts is a recency feed, not a per-day list: the selected-day filter that was here left
+        // the card on "No workouts yet" every morning after a ride. Same 14-day window as classic Today
+        // and Android (`TodayView.recentWorkoutsFeed`), anchored on the selected day and capped at its end
+        // so a navigated past day never shows a later session.
+        workouts = TodayView.recentWorkoutsFeed((await wkA).filter { $0.startTs < toExclusive },
+                                                now: selectedLogicalDay)
 
         let (chargeSource, effortSource, restSource) = await (chargeSourceA, effortSourceA, restSourceA)
         let sourceResolutions = [
