@@ -1810,6 +1810,12 @@ final class HealthKitBridge: ObservableObject {
 
     /// Read only HR samples associated with this HealthKit workout, excluding samples authored by NOOP.
     /// The workout association prevents same-window samples from unrelated sessions being counted.
+    ///
+    /// A companion app can write a whole ride's heart rate as ONE quantity series sample (`count > 1`)
+    /// rather than one sample per reading. The Wahoo app does this for a Roam ride: three hours of 1 Hz
+    /// heart rate arrive as a single `HKQuantitySample`, and a plain sample query reads only its summary
+    /// quantity, so the ride imported with one beat and could not score its own Effort. A series sample
+    /// is therefore expanded into its individual readings; a one-reading sample is used as it is.
     private static func fetchWorkoutHeartRate(for workout: HKWorkout,
                                                store: HKHealthStore) async -> [HRSample] {
         guard let type = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return [] }
@@ -1817,19 +1823,66 @@ final class HealthKitBridge: ObservableObject {
             HKQuery.predicateForObjects(from: workout),
             Self.notNoopAuthored,
         ])
-        return await withCheckedContinuation { (cont: CheckedContinuation<[HRSample], Never>) in
+        let samples: [HKQuantitySample] = await withCheckedContinuation {
+            (cont: CheckedContinuation<[HKQuantitySample], Never>) in
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
             let query = HKSampleQuery(sampleType: type, predicate: predicate,
                                       limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, error in
                 guard error == nil, let samples = samples as? [HKQuantitySample] else {
                     cont.resume(returning: []); return
                 }
-                let unit = HKUnit.count().unitDivided(by: .minute())
-                let result = samples.compactMap { sample -> HRSample? in
-                    HealthWorkoutHR.sample(startEpochSeconds: sample.startDate.timeIntervalSince1970,
-                                           bpm: sample.quantity.doubleValue(for: unit))
+                cont.resume(returning: samples)
+            }
+            store.execute(query)
+        }
+        let unit = HKUnit.count().unitDivided(by: .minute())
+        var result: [HRSample] = []
+        for sample in samples {
+            // A series that cannot be read falls back to its summary reading, which is what this
+            // function returned for it before series were expanded.
+            if sample.count > 1, let readings = await fetchHeartRateSeries(sample, unit: unit, store: store),
+               !readings.isEmpty {
+                result += readings
+            } else if let one = HealthWorkoutHR.sample(startEpochSeconds: sample.startDate.timeIntervalSince1970,
+                                                       bpm: sample.quantity.doubleValue(for: unit)) {
+                result.append(one)
+            }
+        }
+        // Scoring integrates the gap to each next reading, so it needs one ascending stream. Two series
+        // can interleave, and a series reading can share a second with another sample; the first kept
+        // for a second is the one the store would keep too.
+        result.sort { $0.ts < $1.ts }
+        var seen = Set<Int>()
+        return result.filter { seen.insert($0.ts).inserted }
+    }
+
+    /// The individual readings inside one heart-rate series sample, in the order HealthKit reports them,
+    /// or nil when the series query failed.
+    private static func fetchHeartRateSeries(_ sample: HKQuantitySample, unit: HKUnit,
+                                             store: HKHealthStore) async -> [HRSample]? {
+        await withCheckedContinuation { (cont: CheckedContinuation<[HRSample]?, Never>) in
+            var readings: [HRSample] = []
+            var resumed = false
+            let query = HKQuantitySeriesSampleQuery(
+                quantityType: sample.quantityType,
+                predicate: HKQuery.predicateForObject(with: sample.uuid)
+            ) { _, quantity, interval, _, done, error in
+                // HealthKit calls this once per reading on one queue and stops after `done` or an error,
+                // so `resumed` only guards against resuming twice, not against concurrent calls.
+                guard !resumed else { return }
+                if error != nil {
+                    resumed = true
+                    cont.resume(returning: nil); return
                 }
-                cont.resume(returning: result)
+                if let quantity, let interval,
+                   let reading = HealthWorkoutHR.sample(startEpochSeconds: interval.start.timeIntervalSince1970,
+                                                        bpm: quantity.doubleValue(for: unit)) {
+                    readings.append(reading)
+                }
+                if done {
+                    resumed = true
+                    cont.resume(returning: readings)
+                }
             }
             store.execute(query)
         }
