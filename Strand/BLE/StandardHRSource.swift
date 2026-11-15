@@ -392,9 +392,28 @@ extension StandardHRSource: @preconcurrency CBCentralManagerDelegate {
         live.clearSensorMetrics()
         rateComputer.reset()
         live.connected = false
-        if self.peripheral?.identifier == peripheral.identifier {
+        let wasOurs = self.peripheral?.identifier == peripheral.identifier
+        if wasOurs {
             self.peripheral = nil
         }
+        // A link that dropped on its own (out of range, a supervision timeout, the strap restarting) is
+        // asked for again straight away. Without this the strap stayed gone until something else called
+        // `connect`: on one ride the link timed out at minute 0 and NOOP, suspended in the background with
+        // no link to keep it running, recorded only the few minutes after each later relaunch.
+        //
+        // A CoreBluetooth connect request does not time out, so this waits for the strap to come back in
+        // range, and it wakes a suspended app when it completes. `stop()` clears `peripheral` before
+        // cancelling, and a cancel reports no error, so a disconnect the app asked for is never reversed.
+        guard error != nil, wasOurs else { return }
+        guard central.state == .poweredOn else {
+            // The radio went down with the link: park the intent and let the power-on replay connect.
+            pendingConnectID = peripheral.identifier
+            return
+        }
+        self.peripheral = peripheral
+        peripheral.delegate = self
+        log("HR-strap: reconnecting to \(peripheral.identifier) - waits until the strap is back in range")
+        central.connect(peripheral, options: nil)
     }
 }
 

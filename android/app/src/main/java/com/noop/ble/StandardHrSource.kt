@@ -152,6 +152,12 @@ class StandardHrSource(
     private var lastDevice: BluetoothDevice? = null
     /** Guards the single status-133 (Android GATT_ERROR) auto-retry; reset on a successful connect. */
     private var retried133 = false
+    /** True from a connect request until [stop]: the app wants this strap's link. A link that drops while
+     *  this holds is asked for again; one [stop] tore down never is. */
+    @Volatile private var wantLink = false
+    /** True once the current GATT has reached CONNECTED. Only a link that was actually up is re-requested
+     *  when it drops, so a connect attempt that fails outright cannot loop. */
+    @Volatile private var linkWasUp = false
     /** Logs the FIRST HR sample of a connection only (not every notification); reset on stop/disconnect. */
     private var loggedFirstHr = false
 
@@ -240,8 +246,12 @@ class StandardHrSource(
         connectToDevice(device)
     }
 
-    private fun connectToDevice(device: BluetoothDevice) {
+    /** `autoConnect = true` is Android's background connect: it does not time out, and completes when the
+     *  strap is next in range. Used to re-request a link that dropped; a fresh connect stays direct. */
+    private fun connectToDevice(device: BluetoothDevice, autoConnect: Boolean = false) {
         lastDevice = device   // remembered so a status-133 disconnect can auto-retry the same strap
+        wantLink = true
+        linkWasUp = false
         log("HR-strap: connecting to ${device.address}")
         // Tear down any prior link first so we never run two GATTs for this source.
         gatt?.let { runCatching { it.disconnect(); it.close() } }
@@ -250,10 +260,10 @@ class StandardHrSource(
         // the SourceCoordinator reconcile guard) treat a failed start as "stay on the previous source".
         gatt = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+                device.connectGatt(appContext, autoConnect, gattCallback, BluetoothDevice.TRANSPORT_LE)
             } else {
                 @Suppress("DEPRECATION")
-                device.connectGatt(appContext, false, gattCallback)
+                device.connectGatt(appContext, autoConnect, gattCallback)
             }
         }.getOrElse {
             log("HR-strap: connectGatt failed (${it.javaClass.simpleName}: ${it.message})")
@@ -263,6 +273,7 @@ class StandardHrSource(
 
     /** Tear down: cancel the connection and stop scanning, persisting anything still buffered. Idempotent. */
     override fun stop() {
+        wantLink = false
         stopScan()
         pendingConnectAddress = null
         gatt?.let { runCatching { it.disconnect(); it.close() } }
@@ -437,6 +448,7 @@ class StandardHrSource(
                         log("HR-strap: WARNING connected with non-success status=$status")
                     }
                     retried133 = false   // a real connection clears the one-shot 133 retry guard
+                    linkWasUp = true
                     log("HR-strap: connected (status=$status) — discovering services")
                     logPolarIdentityOnce(g.device)
                     g.discoverServices()
@@ -449,7 +461,22 @@ class StandardHrSource(
                     _batteryPct.value = null // a stale charge must not outlive the link
                     flush(StandardHrFlushReason.DISCONNECT)
                     clearSensorState()
-                    if (gatt === g) { runCatching { g.close() }; gatt = null }
+                    val wasOurs = gatt === g
+                    if (wasOurs) { runCatching { g.close() }; gatt = null }
+                    // A link that was up and dropped on its own (out of range, a supervision timeout, the
+                    // strap restarting) is asked for again with autoConnect, which waits for the strap to
+                    // come back. Without this the strap stayed gone until something else called connect.
+                    // Twin of the Swift `StandardHRSource` reconnect. `stop()` clears `wantLink` first, so a
+                    // disconnect the app asked for is never reversed.
+                    val device = lastDevice
+                    if (wasOurs && wantLink && linkWasUp && status != GATT_ERROR_133 && device != null &&
+                        adapter?.isEnabled == true) {
+                        log("HR-strap: reconnecting to ${device.address} (status=$status) - waits until " +
+                            "the strap is back in range")
+                        handler.post {
+                            if (wantLink && gatt == null) connectToDevice(device, autoConnect = true)
+                        }
+                    }
                     // Hardening: status 133 is Android's infamous generic GATT_ERROR on connect — almost
                     // always transient. Auto-retry ONCE before telling the user to forget+re-pair.
                     if (status == GATT_ERROR_133) {
