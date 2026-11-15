@@ -1691,47 +1691,51 @@ final class HealthKitBridge: ObservableObject {
             let steps = await Self.fetchWorkoutSteps(for: workout, store: store)
             // The day's measured resting HR, the same reserve the day's own Effort is scored against.
             let restingHR = repo.workoutRestingHR(startTs: startTs)
-            // Prefer a chest strap NOOP recorded itself over this exact window (a Wahoo or Polar on the
-            // bike, stored at 1 Hz), then the HR stream HealthKit associates with this workout (for
-            // example, Apple Watch, or the strap's beats as its companion app thinned them), and only
-            // then the locally stored WHOOP trace. The first stream that can score the session wins.
+            // Candidate streams in precedence order: a chest strap NOOP recorded itself over this exact
+            // window (a Wahoo or Polar on the bike, stored at 1 Hz), then the HR stream HealthKit
+            // associates with this workout (an Apple Watch, or a bike computer's ride as its companion
+            // app wrote it), then the locally stored WHOOP trace.
+            //
+            // The stream that MEASURED the session answers, not merely the first that clears the sample
+            // floor: a strap NOOP only caught in bursts while iOS kept suspending it clears that floor
+            // easily and used to outrank a complete HealthKit stream, scoring a three-hour ride from its
+            // 21 minutes. `WorkoutHRCoverage.pick` keeps precedence between streams that cover the ride
+            // alike and leaves Effort blank when none covers half of it.
             //
             // ONE stream answers the whole row. The streams are never merged, which would double-count
             // overlapping beats, and they are never split across fields either: a mean from the watch
             // beside an Effort integrated from the strap are two readings of one session that a wearer
             // cannot reconcile, and with no watch beats at all it would print an Effort with no heart
-            // rate to account for it. So when the fallback is what scores the session, it reports that
-            // session's mean and peak too.
+            // rate to account for it. So the stream that scores the session reports its mean and peak too.
             var samples: [HRSample] = []
             var effort: Double?
             if let profile {
-                for id in strapIds where effort == nil {
+                var candidates: [[HRSample]] = []
+                for id in strapIds {
                     // A strap can log more than one row a second, so a long ride needs headroom past
                     // the 20 000 the WHOOP read below allows.
-                    let strapSamples = await repo.hrSamples(deviceIds: [id], from: startTs, to: endTs,
-                                                            limit: 50_000)
-                    if let strapEffort = Self.scoredEffort(strapSamples, profile: profile, restingHR: restingHR) {
-                        effort = strapEffort
-                        samples = strapSamples
-                    }
+                    candidates.append(await repo.hrSamples(deviceIds: [id], from: startTs, to: endTs,
+                                                           limit: 50_000))
                 }
-            }
-            if effort == nil {
-                samples = appleSamples
-                effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0, restingHR: restingHR) }
-            }
-            if effort == nil, let profile {
+                candidates.append(appleSamples)
                 let hrDeviceIds = Repository.workoutHrDeviceIds(
                     source: Self.appleWorkoutSource,
                     activeStrapId: repo.deviceId,
                     importedIds: repo.importedReadIds)
-                let strapSamples = await repo.hrSamples(deviceIds: hrDeviceIds,
-                                                        from: startTs, to: endTs,
-                                                        limit: 20_000)
-                if let strapEffort = Self.scoredEffort(strapSamples, profile: profile, restingHR: restingHR) {
-                    effort = strapEffort
-                    samples = strapSamples
+                candidates.append(await repo.hrSamples(deviceIds: hrDeviceIds, from: startTs, to: endTs,
+                                                       limit: 20_000))
+                let scorable = candidates.filter { Self.hasEffortCoverage($0) }
+                let workoutMinutes = Double(endTs - startTs) / 60
+                if let pick = WorkoutHRCoverage.pick(coverage: scorable.map(WorkoutHRCoverage.coveredMinutes),
+                                                     workoutMinutes: workoutMinutes),
+                   let scored = Self.scoredEffort(scorable[pick], profile: profile, restingHR: restingHR) {
+                    effort = scored
+                    samples = scorable[pick]
                 }
+            }
+            if effort == nil {
+                // No stream can score the session: the watch's beats still answer the mean and peak.
+                samples = appleSamples
             }
             // Two gates, not one. A mean and a peak are readable from any beat the answering stream
             // carries, so they are reported whenever there are samples, which is what `WorkoutSource`
@@ -1773,15 +1777,20 @@ final class HealthKitBridge: ObservableObject {
     /// [effortMinimumSamples]; twenty beats crowded into a minute is not ten minutes of measurement.
     private static let effortMinimumSpanSeconds = 600
 
-    /// Score a workout only when its source stream has enough independent coverage to represent the
-    /// session. Used first for HealthKit-associated HR and then for the WHOOP fallback; source samples
-    /// are intentionally never combined.
+    /// Whether a stream clears the sample-count and span floor an Effort needs. Which of the streams
+    /// that clear it answers is `WorkoutHRCoverage.pick`'s decision.
+    private static func hasEffortCoverage(_ samples: [HRSample]) -> Bool {
+        guard let first = samples.first, let last = samples.last else { return false }
+        return samples.count >= effortMinimumSamples && last.ts - first.ts >= effortMinimumSpanSeconds
+    }
+
+    /// Score a workout from one source stream, only when it has enough independent coverage to represent
+    /// the session. Called on the stream `WorkoutHRCoverage.pick` chose; source samples are intentionally
+    /// never combined.
     private static func scoredEffort(_ samples: [HRSample],
                                      profile: Repository.StrainProfile,
                                      restingHR: Double) -> Double? {
-        guard let first = samples.first, let last = samples.last,
-              samples.count >= effortMinimumSamples,
-              last.ts - first.ts >= effortMinimumSpanSeconds else { return nil }
+        guard hasEffortCoverage(samples) else { return nil }
         return StrainScorer.strain(samples, maxHR: profile.hrMax, restingHR: restingHR,
                                    method: PuffinExperiment.effortMethod,
                                    sex: profile.sex)
