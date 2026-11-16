@@ -984,6 +984,15 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Non-nil signals that `centralManagerDidUpdateState` should reconnect this
     /// specific peripheral rather than starting a fresh scan.
     private var restoredPeripheral: CBPeripheral?
+    #if os(iOS)
+    /// True while this process is holding its store open and its strap connect for the phone's first unlock
+    /// since a restart (see `holdForFirstUnlockIfNeeded`). Cleared by `resumeAfterFirstUnlock`.
+    private var awaitingFirstUnlock = false
+    /// The `protectedDataDidBecomeAvailableNotification` observer armed while `awaitingFirstUnlock` holds.
+    private var firstUnlockObserver: NSObjectProtocol?
+    /// A peripheral `willRestoreState` handed over while the store was still unreadable, applied on unlock.
+    private var pendingRestoredPeripheral: CBPeripheral?
+    #endif
     /// #280: true while `lastSyncError` currently holds a radio-state message (off / unauthorized /
     /// unsupported) that `centralManagerDidUpdateState` set. Lets the poweredOn transition clear ONLY
     /// that message, never a genuine mid-sync error (e.g. "Sync interrupted").
@@ -1424,6 +1433,8 @@ public final class BLEManager: NSObject, ObservableObject {
 
     func bootstrapStore() async {
         guard collector == nil else { return }
+        // Opening now would only fail into SQLITE_AUTH; `resumeAfterFirstUnlock` opens it.
+        guard !isHoldingForFirstUnlock else { return }
         // Surface store-open failures instead of swallowing them with `try?` (#222): a silent failure
         // here left `backfiller` nil forever and the only visible symptom was the downstream
         // "store not ready" tick, with no clue why. On iOS a background reconnect that opens the
@@ -1648,8 +1659,85 @@ public final class BLEManager: NSObject, ObservableObject {
         // on its own. Gating the shared core instead would have made the Connect button silently dead
         // while the Devices screen showed a "Reconnecting…" toast.
         guard whoopConnectAllowed("connect-from-system") else { return }
+        guard !isHoldingForFirstUnlock else {
+            log("Connect deferred — holding for the phone's first unlock since a restart")
+            return
+        }
         connectCore(model: model)
     }
+
+    /// Whether the store and the saved strap settings are held back for the phone's first unlock. Always
+    /// false off iOS.
+    private var isHoldingForFirstUnlock: Bool {
+        #if os(iOS)
+        return awaitingFirstUnlock
+        #else
+        return false
+        #endif
+    }
+
+    #if os(iOS)
+    /// True when this process launched before the phone's first unlock since a restart, so the store is
+    /// unreadable.
+    ///
+    /// The store and UserDefaults are `completeUntilFirstUserAuthentication`: readable while the phone is
+    /// locked, except between a restart and the first unlock. A background relaunch in that window opened
+    /// the store into `SQLITE_AUTH` (code 23), read no saved model (so it scanned for the WHOOP 4.0
+    /// default) and no last strap (so the targeted background connect was skipped), and it never looked
+    /// again once the phone was unlocked: a WHOOP 5.0/MG sat in range for 37 minutes, unconnected.
+    ///
+    /// `isProtectedDataAvailable` alone cannot tell that window apart. It is false whenever the phone is
+    /// locked, including the ordinary overnight relaunch that reads the store and reconnects fine, and
+    /// holding that one back would lose the night. So the file itself is asked: only a store that exists
+    /// and cannot be opened for reading counts. A fresh install (no store yet) is never held.
+    static func storeUnreadableBeforeFirstUnlock() -> Bool {
+        guard !UIApplication.shared.isProtectedDataAvailable else { return false }
+        guard let path = try? StorePaths.defaultDatabasePath(),
+              FileManager.default.fileExists(atPath: path) else { return false }
+        guard let handle = FileHandle(forReadingAtPath: path) else { return true }
+        try? handle.close()
+        return false
+    }
+
+    /// Hold the store open and every system connect until the phone's first unlock, when this launch found
+    /// the store unreadable. Returns true while holding. Arms one `protectedDataDidBecomeAvailable` observer,
+    /// which fires on unlock and resumes the normal launch path with the real saved settings.
+    private func holdForFirstUnlockIfNeeded(_ trigger: String) -> Bool {
+        if awaitingFirstUnlock { return true }
+        guard Self.storeUnreadableBeforeFirstUnlock() else { return false }
+        awaitingFirstUnlock = true
+        log("Store unreadable: the phone has not been unlocked since a restart, so saved strap settings "
+            + "cannot be read either. Holding the store open and the strap connect until the first unlock "
+            + "(\(trigger))")
+        firstUnlockObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.resumeAfterFirstUnlock() }
+        }
+        return true
+    }
+
+    /// The first unlock arrived: run the launch path that was held back, now able to read the store, the
+    /// saved model and the last strap.
+    private func resumeAfterFirstUnlock() {
+        guard awaitingFirstUnlock else { return }
+        awaitingFirstUnlock = false
+        if let observer = firstUnlockObserver { NotificationCenter.default.removeObserver(observer) }
+        firstUnlockObserver = nil
+        // Reports what the saved settings read back as, since they are exactly what was missing before.
+        let savedModel = UserDefaults.standard.string(forKey: "selectedWhoopModel") ?? "none"
+        let lastStrap = Self.lastConnectedPeripheralUUID == nil ? "none" : "saved"
+        log("First unlock: store readable — resuming launch (saved model: \(savedModel), last strap: \(lastStrap))")
+        // A restored strap reconnects (and opens the store) through `applyRestoredState`, or on poweredOn if
+        // the radio is not up yet; running `startAfterPoweredOn` as well would connect it a second time.
+        if let p = pendingRestoredPeripheral {
+            pendingRestoredPeripheral = nil
+            applyRestoredState(p)
+        } else if central.state == .poweredOn {
+            startAfterPoweredOn()
+        }
+    }
+    #endif
 
     private func connectCore(model: WhoopModel) {
         intentionalDisconnect = false
@@ -5861,6 +5949,15 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             state.lastSyncError = nil
             radioStateErrorShown = false
         }
+        #if os(iOS)
+        if holdForFirstUnlockIfNeeded("poweredOn") { return }
+        #endif
+        startAfterPoweredOn()
+    }
+
+    /// The poweredOn launch path: open the store and reconnect the restored or last strap. Split out so
+    /// `resumeAfterFirstUnlock` can run it once the store is readable.
+    private func startAfterPoweredOn() {
         // Bootstrap the async store once on first poweredOn (idempotent if already set).
         Task { @MainActor in await bootstrapStore() }
         if let p = restoredPeripheral {
@@ -6510,6 +6607,19 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             log("Restore: no peripherals in state dict")
             return
         }
+        #if os(iOS)
+        // Restoring now would read the saved model as the WHOOP 4.0 default and decode a 5.0/MG wrong.
+        if holdForFirstUnlockIfNeeded("willRestoreState") {
+            pendingRestoredPeripheral = p
+            return
+        }
+        #endif
+        applyRestoredState(p)
+    }
+
+    /// Adopt a peripheral CoreBluetooth restored: re-derive its family, seed the bond flags, and rediscover
+    /// or reconnect it.
+    private func applyRestoredState(_ p: CBPeripheral) {
         self.peripheral = p
         self.restoredPeripheral = p
         p.delegate = self
