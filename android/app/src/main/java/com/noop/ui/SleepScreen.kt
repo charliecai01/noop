@@ -1533,21 +1533,8 @@ private fun Hero(
             ) {
                 SleepLowConfidenceNote()
             }
-            // The blocks both caveats below read, hoisted so the two cannot consult a different set.
-            // `stagingSparse` is a DAY-level verdict stamped onto EVERY block (see iOS
-            // stageShowsIncompleteNote: "each carries the day's value"), so asking only the main block is
-            // asking one witness out of several. On a night whose main block is imported, and therefore
-            // carries a nil flag, while a computed fragment carries true, iOS warned and Android stayed
-            // silent, though both claimed to mirror each other.
+            // The blocks the coverage caveat below reads: the bridged group, or the main block alone.
             val dayBlocks = sleepDayBlocks(session, heroGroup)
-            // #345 follow-up: a night staged on SPARSE motion coverage can UNDER-detect and read short
-            // ("slept 8h, shows 1h"). Say so honestly — but only when the night ACTUALLY reads short, since
-            // the stagingSparse flag alone fires on one long motion dropout at any night length. The rule
-            // and its reasoning live in [stageSparseNoteApplies]. A nil flag (imported / pre-migration
-            // block) is never itself a flag. Mirrors iOS SleepView.stageShowsIncompleteNote.
-            if (stageSparseNoteApplies(anyBlockStagingSparse(dayBlocks), s.asleep)) {
-                SleepIncompleteNote()
-            }
             // #1716 — a device-provided hypnogram assembled from records that never all arrived leaves a
             // HOLE in the timeline while the session still spans the whole night, so a night we saw a
             // fraction of renders as a complete one. Asked of the bridged main-night GROUP (the quantity
@@ -1742,78 +1729,11 @@ private fun SleepLowConfidenceNote() {
  * The stored blocks the sleep caveats read: the bridged main-night GROUP, falling back to the single main
  * block when the group is empty. Pure, so the CHOICE of blocks is testable rather than an inline
  * expression buried in a Composable.
- *
- * Narrower than iOS, which reads `night.sourceBlocks`, every real block of the day. `Hero` is handed only
- * `session` and `heroGroup`, so a block outside the group is not consulted here. Since `stagingSparse` is
- * stamped on every block of the day, any block in the group carries it, which covers the reported shape;
- * widening it would mean plumbing a new parameter.
  */
 internal fun sleepDayBlocks(
     session: SleepSession?,
     heroGroup: List<SleepSession>,
 ): List<SleepSession> = heroGroup.ifEmpty { listOfNotNull(session) }
-
-/**
- * Whether ANY of the day's blocks carries the sparse-staging verdict.
- *
- * `stagingSparse` is a DAY-level flag stamped onto every block, which iOS states on its own gate ("each
- * carries the day's value") and reads as `night.sourceBlocks.contains { $0.stagingSparse == true }`.
- * Android asked the main block alone, so a night whose main block was imported (nil flag) while a computed
- * fragment carried true warned on iPhone and Mac and stayed silent here, though both claimed to mirror
- * each other. A nil flag is never itself a flag.
- */
-internal fun anyBlockStagingSparse(blocks: List<SleepSession>): Boolean =
-    blocks.any { it.stagingSparse == true }
-
-/**
- * Pure #345 gate (unit-testable without a Composable) — whether the "May be incomplete" caveat applies.
- * Twin of Swift `SleepView.stageSparseNoteApplies`.
- *
- * [stagingSparse] alone is NOT the question the note asks. It is a STAGING-MECHANISM verdict:
- * [SleepStager.isGravitySparse] returns true when the gravity span is short against the HR span OR when the
- * LARGEST inter-sample gap exceeds `maxGapMin`, and its own doc calls that second branch "the typical WHOOP
- * 4.0 backfill (#28)" whose only consequence is to ENABLE `buildRuns`' HR-vouched bridge. So a single long
- * motion dropout sets it on a night of ANY length, including a complete twelve-hour one, and the flag is
- * raised precisely where the engine has already applied its own mitigation.
- *
- * The note's copy, though, claims something narrower and checkable: that the night may be under-detected and
- * the sleep total can read short. So require the total to actually read short. A night at or above the
- * wearer's need cannot honestly be captioned as possibly reading short, whatever the motion trace looked
- * like.
- *
- * A night that staged to NOTHING keeps the caveat: zero asleep is the strongest form of the collapse this
- * note exists to explain, not an exemption from it.
- *
- * [needHours] is a parameter rather than a constant so a personalised need
- * (`RestScorer.personalizedNeedHours`) can be threaded in later without moving the rule. It is
- * computed per pass today and not persisted on a row a screen can reach, so the shared default stands in.
- */
-internal fun stageSparseNoteApplies(
-    stagingSparse: Boolean,
-    asleepMin: Double,
-    needHours: Double = com.noop.analytics.RestScorer.defaultSleepNeedHours,
-): Boolean {
-    if (!stagingSparse) return false
-    return asleepMin < needHours * 60.0
-}
-
-/** The sparse-coverage caveat (#345): a night staged on thin motion data can under-detect and read short
- *  ("slept 8h, shows 1h"). Honest + actionable. Mirrors iOS SleepView.stageIncompleteNote. */
-@Composable
-private fun SleepIncompleteNote() {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(horizontal = 2.dp),
-    ) {
-        SourceBadge(text = uiString(R.string.l10n_sleep_screen_may_be_incomplete_7230dc27), tint = Palette.statusWarning)
-        Text(
-            uiString(R.string.l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4),
-            style = NoopType.caption,
-            color = Palette.textTertiary,
-        )
-    }
-}
 
 /**
  * The PARTIAL-TIMELINE caveat (#1716): this night's stage segments account for less than

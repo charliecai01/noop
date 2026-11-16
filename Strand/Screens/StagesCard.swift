@@ -116,13 +116,6 @@ struct StageDetailView: View {
             if stageStagingIsLowConfidence(night) {
                 stageLowConfidenceNote
             }
-            // #345 follow-up: when a night was staged on SPARSE motion coverage it can UNDER-detect — the
-            // gravity-only spine fragments and the sub-60-min pieces are dropped, so a real ~8h night can
-            // collapse to a fraction ("slept 8h, app shows 1h"). Say so honestly so the short total isn't
-            // read as fact. Distinct from the H9 note above (a plausible-duration night with an off split).
-            if stageShowsIncompleteNote(night) {
-                stageIncompleteNote
-            }
             // #1716 — a device-provided hypnogram whose records never all arrived leaves a HOLE in the
             // timeline while the session still spans the whole night, so a night we saw a fraction of
             // renders as a complete one. Say which fraction, exactly as the Sleep tab does.
@@ -248,19 +241,6 @@ struct StageDetailView: View {
             asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: effPct / 100.0)
     }
 
-    /// True when this night earns the "May be incomplete" caveat: staged on SPARSE motion coverage AND
-    /// actually reading short (#345). `SleepView.stageSparseNoteApplies` carries the reasoning and is the
-    /// single place the rule lives. Reads the day's REAL stored blocks (each carries the day's value), never
-    /// the synthetic merged `session`; a nil flag (imported / pre-migration night) is never flagged.
-    private func stageShowsIncompleteNote(_ night: Night) -> Bool {
-        // Same shared gate as `SleepView.stageShowsIncompleteNote`, for the same reason this host already
-        // borrows `isStagingLowConfidence` and `mainNightGroup`: the two screens render the same night and
-        // must not disagree about whether it earns the caveat.
-        SleepView.stageSparseNoteApplies(
-            stagingSparse: night.sourceBlocks.contains { $0.stagingSparse == true },
-            asleepMin: night.stages.asleep)
-    }
-
     /// How much of this night's window its stage timeline actually accounts for, or nil when coverage is not
     /// a measurable question for the payloads it was built from (#1716). Same shared group accumulation as
     /// `SleepView.stageCoverage(_:)` — this host renders the same night and must not reach a different
@@ -285,22 +265,6 @@ struct StageDetailView: View {
         .padding(.horizontal, 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Low confidence staging. This night scored high efficiency but very little deep or REM, more likely an estimate miss than a real restorative shortfall.")
-    }
-
-    /// The sparse-coverage caveat: a night staged on thin motion data can under-detect and collapse a real
-    /// night to a fraction ("slept 8h, shows 1h"). Honest + actionable — tells the user to make sure the
-    /// strap fully synced. Distinct from the H9 note (an off deep/REM split, not a short total). (#345)
-    private var stageIncompleteNote: some View {
-        HStack(alignment: .top, spacing: 8) {
-            SourceBadge("May be incomplete", tint: StrandPalette.statusWarning)
-            Text("Your strap recorded little movement overnight (common on WHOOP 4.0), so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced; the numbers are kept as-is.")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 2)
-        // `.combine` builds the a11y label from the badge + body Text (no separate localized string).
-        .accessibilityElement(children: .combine)
     }
 
     /// The PARTIAL-TIMELINE caveat (#1716) — twin of `SleepView.stagePartialNote(_:)`, same copy and same

@@ -2064,8 +2064,6 @@
         <item quantity="other">Creazione della tua linea di base. Ancora circa %1$d notti prima che i punteggi siano personalizzati.</item>
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">I widget smettono di inventare numeri, i sonnellini contano per il debito di sonno e i chip di stato Android parlano la tua lingua</string>
-    <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Potrebbe essere incompleto</string>
-    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Durante la notte è stato registrato poco movimento, quindi questa notte potrebbe essere rilevata solo in parte e il totale del sonno potrebbe risultare basso. Assicurati che la fascia abbia completato la sincronizzazione.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Registrazione parziale</string>
     <string name="l10n_sleep_screen_only_of_this_night_s_window_9660332a">Solo il %1$d%% della finestra di questa notte ha dati sulle fasi. I totali delle fasi coprono solo quella parte della notte.</string>
     <string name="haptics_section_title">Feedback aptico</string>
